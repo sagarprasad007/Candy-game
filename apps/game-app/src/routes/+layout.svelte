@@ -49,35 +49,35 @@
   <main class="content-area">
     {@render children()}
   </main>
-
-  <!-- Mobile Bottom Navigation Bar -->
-  <nav class="mobile-bottom-nav">
-    <a href="/" class="mobile-nav-item">
-      <span class="icon">🏠</span>
-      <span class="label">Home</span>
-    </a>
-    <a href="/levels" class="mobile-nav-item">
-      <span class="icon">🗺️</span>
-      <span class="label">Levels</span>
-    </a>
-    <a href="/wheel" class="mobile-nav-item">
-      <span class="icon">🎡</span>
-      <span class="label">Wheel</span>
-    </a>
-    <a href="/leaderboard" class="mobile-nav-item">
-      <span class="icon">🏆</span>
-      <span class="label">Rankings</span>
-    </a>
-    <a href="/achievements" class="mobile-nav-item">
-      <span class="icon">✨</span>
-      <span class="label">Trophies</span>
-    </a>
-    <a href="/settings" class="mobile-nav-item">
-      <span class="icon">⚙️</span>
-      <span class="label">Settings</span>
-    </a>
-  </nav>
 </div>
+
+<!-- Keep this OUTSIDE candy-wrapper to prevent backdrop-filter containing block issues -->
+<nav class="mobile-bottom-nav">
+  <a href="/" class="mobile-nav-item">
+    <span class="icon">🏠</span>
+    <span class="label">Home</span>
+  </a>
+  <a href="/levels" class="mobile-nav-item">
+    <span class="icon">🗺️</span>
+    <span class="label">Levels</span>
+  </a>
+  <a href="/wheel" class="mobile-nav-item">
+    <span class="icon">🎡</span>
+    <span class="label">Wheel</span>
+  </a>
+  <a href="/leaderboard" class="mobile-nav-item">
+    <span class="icon">🏆</span>
+    <span class="label">Rankings</span>
+  </a>
+  <a href="/achievements" class="mobile-nav-item">
+    <span class="icon">✨</span>
+    <span class="label">Trophies</span>
+  </a>
+  <a href="/settings" class="mobile-nav-item">
+    <span class="icon">⚙️</span>
+    <span class="label">Settings</span>
+  </a>
+</nav>
 
 <style>
   :global(:root) {
@@ -217,16 +217,19 @@
     bottom: 0;
     left: 0;
     right: 0;
-    height: 60px;
+    height: 64px;
     background: #ffffff;
     border-top: 2px solid #f472b6;
     box-shadow: 0 -4px 20px rgba(236, 72, 153, 0.2);
-    z-index: 9999;
+    z-index: 99999;
     justify-content: space-around;
     align-items: center;
+    padding-bottom: env(safe-area-inset-bottom);
   }
 
   .mobile-nav-item {
+    flex: 1;
+    height: 64px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -237,8 +240,8 @@
     font-weight: 700;
     gap: 2px;
     width: 100%;
-    height: 100%;
     transition: background 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .mobile-nav-item:active {

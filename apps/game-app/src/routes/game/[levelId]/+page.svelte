@@ -62,56 +62,75 @@
       goto(`/results/${levelId}?status=${status}&score=${gameState?.score || 0}`);
     }, 800);
   }
-  let touchStart: { x: number; y: number; r: number; c: number } | null = null;
+  let pointerStart: { x: number; y: number; r: number; c: number } | null = null;
+  let swipeHandled = false;
 
-  function handleTouchStart(e: TouchEvent, r: number, c: number) {
+  function handlePointerDown(e: PointerEvent, r: number, c: number) {
     if (!engine || !gameState || gameState.isProcessing) return;
-    const touch = e.touches[0];
-    touchStart = { x: touch.clientX, y: touch.clientY, r, c };
+    pointerStart = { x: e.clientX, y: e.clientY, r, c };
+    swipeHandled = false;
+
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {
+      // Ignore if pointer capture is unavailable
+    }
   }
 
-  async function handleTouchMove(e: TouchEvent) {
-    if (!touchStart || !engine || !gameState || gameState.isProcessing) return;
-    const touch = e.touches[0];
-    const dx = touch.clientX - touch.x;
-    const dy = touch.clientY - touch.y;
-    const threshold = 15; // Responsive 15px swipe distance
+  async function handlePointerUp(e: PointerEvent) {
+    if (!pointerStart || !engine || !gameState || gameState.isProcessing) {
+      pointerStart = null;
+      return;
+    }
 
-    if (Math.abs(dx) > threshold || Math.abs(dy) > threshold) {
-      e.preventDefault();
-      let targetR = touchStart.r;
-      let targetC = touchStart.c;
+    const start = pointerStart;
+    const dx = e.clientX - start.x;
+    const dy = e.clientY - start.y;
+    pointerStart = null;
 
-      if (Math.abs(dx) > Math.abs(dy)) {
-        targetC += dx > 0 ? 1 : -1;
-      } else {
-        targetR += dy > 0 ? 1 : -1;
-      }
+    const threshold = 25; // Reliable swipe distance threshold
 
-      const fromR = touchStart.r;
-      const fromC = touchStart.c;
-      touchStart = null;
-      selectedRow = -1;
-      selectedCol = -1;
+    if (Math.abs(dx) < threshold && Math.abs(dy) < threshold) {
+      return;
+    }
 
-      if (
-        targetR >= 0 && targetR < gameState.levelConfig.boardRows &&
-        targetC >= 0 && targetC < gameState.levelConfig.boardCols
-      ) {
-        const success = await engine.executeMove(fromR, fromC, targetR, targetC);
-        gameState = { ...engine.state };
-        if (success) {
-          soundFx.playMatchSound(engine.state.comboCount);
-          if (engine.state.status !== 'playing') {
-            handleGameOver(engine.state.status);
-          }
-        }
+    swipeHandled = true;
+
+    let targetR = start.r;
+    let targetC = start.c;
+
+    if (Math.abs(dx) > Math.abs(dy)) {
+      targetC += dx > 0 ? 1 : -1;
+    } else {
+      targetR += dy > 0 ? 1 : -1;
+    }
+
+    if (
+      targetR < 0 ||
+      targetR >= gameState.levelConfig.boardRows ||
+      targetC < 0 ||
+      targetC >= gameState.levelConfig.boardCols
+    ) {
+      return;
+    }
+
+    selectedRow = -1;
+    selectedCol = -1;
+
+    const success = await engine.executeMove(start.r, start.c, targetR, targetC);
+    gameState = { ...engine.state };
+
+    if (success) {
+      soundFx.playMatchSound(engine.state.comboCount);
+      if (engine.state.status !== 'playing') {
+        handleGameOver(engine.state.status);
       }
     }
   }
 
-  function handleTouchEnd() {
-    touchStart = null;
+  function handlePointerCancel() {
+    pointerStart = null;
+    swipeHandled = false;
   }
 </script>
 
@@ -148,10 +167,15 @@
             <button
               type="button"
               class="candy-tile type-{tile.type} {selectedRow === r && selectedCol === c ? 'selected' : ''} {tile.matched ? 'matched' : ''} {tile.falling ? 'falling' : ''}"
-              onclick={() => handleTileClick(r, c)}
-              ontouchstart={(e) => handleTouchStart(e, r, c)}
-              ontouchmove={handleTouchMove}
-              ontouchend={handleTouchEnd}
+              onclick={() => {
+                if (!swipeHandled) {
+                  handleTileClick(r, c);
+                }
+                swipeHandled = false;
+              }}
+              onpointerdown={(e) => handlePointerDown(e, r, c)}
+              onpointerup={handlePointerUp}
+              onpointercancel={handlePointerCancel}
               aria-label="Candy {tile.type}"
             >
               <div class="candy-symbol">
@@ -253,6 +277,8 @@
     width: 100%;
     aspect-ratio: 1;
     touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
   }
 
   .candy-tile {
@@ -266,7 +292,9 @@
     justify-content: center;
     position: relative;
     user-select: none;
+    -webkit-user-select: none;
     touch-action: none;
+    -webkit-tap-highlight-color: transparent;
     box-shadow: 0 6px 12px rgba(0, 0, 0, 0.12), inset 0 2px 2px rgba(255, 255, 255, 0.5);
     transition: transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.15s ease;
     overflow: hidden;
