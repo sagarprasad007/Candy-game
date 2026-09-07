@@ -1,0 +1,21 @@
+{
+  "name": "Candy Kingdom",
+  "short_name": "CandyKingdom",
+  "description": "Delightful Match-3 Candy Kingdom Puzzle Game with Hi Shital Baby 💕 theme!",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ff9a9e",
+  "theme_color": "#f43f5e",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/favicon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

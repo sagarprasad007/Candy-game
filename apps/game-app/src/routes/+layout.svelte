@@ -210,7 +210,7 @@
     flex-direction: column;
   }
 
-  /* Mobile Native Bottom Navigation Bar */
+  /* Bottom Navigation Bar - Always Visible */
   .mobile-bottom-nav {
     display: flex;
     position: fixed;
@@ -224,12 +224,6 @@
     z-index: 999;
     justify-content: space-around;
     align-items: center;
-  }
-
-  @media (min-width: 640px) {
-    .mobile-bottom-nav {
-      display: none;
-    }
   }
 
   .mobile-nav-item {
