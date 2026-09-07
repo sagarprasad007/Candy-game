@@ -1,0 +1,1 @@
+import{aa as n,k as u}from"./COzFJoeb.js";function c(t,r,i){var s=t==null?"":""+t;return r&&(s=s?s+" "+r:r),s===""?null:s}function p(t,r){return t==null?null:String(t)}function A(t,r,i,s,f,a){var l=t[n];if(u||l!==i||l===void 0){var e=c(i,s);(!u||e!==t.getAttribute("class"))&&(e==null?t.removeAttribute("class"):t.className=e),t[n]=i}return a}export{A as s,p as t};
