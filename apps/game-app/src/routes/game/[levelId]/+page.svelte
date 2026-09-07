@@ -11,6 +11,29 @@
   let gameState: GameEngineState | null = $state(null);
   let selectedRow = $state(-1);
   let selectedCol = $state(-1);
+  let gridElement: HTMLElement | null = $state(null);
+
+  // FIX #2 — Cell pitch calculation using container size and actual row/col gaps
+  let cellPitchX = $state(50);
+  let cellPitchY = $state(50);
+
+  function updateGeometry() {
+    if (gridElement && gameState) {
+      const rect = gridElement.getBoundingClientRect();
+      const cols = gameState.levelConfig.boardCols || 8;
+      const rows = gameState.levelConfig.boardRows || 8;
+
+      const style = window.getComputedStyle(gridElement);
+      const colGap = parseFloat(style.columnGap || style.gap || '10') || 10;
+      const rowGap = parseFloat(style.rowGap || style.gap || '10') || 10;
+
+      const cellSizeX = (rect.width - (cols - 1) * colGap) / cols;
+      const cellSizeY = (rect.height - (rows - 1) * rowGap) / rows;
+
+      cellPitchX = cellSizeX + colGap;
+      cellPitchY = cellSizeY + rowGap;
+    }
+  }
 
   onMount(() => {
     if (!playerStore.progress.unlockedLevels.includes(levelId)) {
@@ -20,6 +43,18 @@
 
     engine = new GameEngine(levelId);
     gameState = engine.state;
+
+    // FIX #4 — Cascade sound hook integration (plays sound per cascade step without duplicate sound spam)
+    engine.onCascade = (comboCount: number) => {
+      soundFx.playMatchSound(comboCount);
+    };
+
+    window.addEventListener('resize', updateGeometry);
+    setTimeout(updateGeometry, 50);
+
+    return () => {
+      window.removeEventListener('resize', updateGeometry);
+    };
   });
 
   async function handleTileClick(r: number, c: number) {
@@ -41,7 +76,6 @@
       gameState = { ...engine.state };
 
       if (success) {
-        soundFx.playMatchSound(engine.state.comboCount);
         if (engine.state.status !== 'playing') {
           handleGameOver(engine.state.status);
         }
@@ -62,18 +96,25 @@
       goto(`/results/${levelId}?status=${status}&score=${gameState?.score || 0}`);
     }, 800);
   }
+
+  // Pointer Events gesture state with direction locking (SHOULD FIX #14)
   let pointerStart: { x: number; y: number; r: number; c: number } | null = null;
+  let dragOffset = $state<{ r: number; c: number; dx: number; dy: number; targetR: number; targetC: number } | null>(null);
+  let lockedDirection = $state<'horizontal' | 'vertical' | null>(null);
   let swipeHandled = false;
 
   function handlePointerDown(e: PointerEvent, r: number, c: number) {
     if (!engine || !gameState || gameState.isProcessing) return;
+    updateGeometry();
     pointerStart = { x: e.clientX, y: e.clientY, r, c };
+    dragOffset = { r, c, dx: 0, dy: 0, targetR: -1, targetC: -1 };
+    lockedDirection = null;
     swipeHandled = false;
 
     try {
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     } catch {
-      // Ignore if pointer capture is unavailable
+      // Ignore if pointer capture unavailable
     }
   }
 
@@ -83,23 +124,69 @@
     const dx = e.clientX - pointerStart.x;
     const dy = e.clientY - pointerStart.y;
 
-    if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+    const distance = Math.hypot(dx, dy);
+    if (distance > 6) {
       e.preventDefault();
+
+      // Lock direction after threshold (SHOULD FIX #14)
+      if (!lockedDirection) {
+        lockedDirection = Math.abs(dx) > Math.abs(dy) ? 'horizontal' : 'vertical';
+      }
+
+      const maxDrag = cellPitchX * 0.95;
+      let clampedDx = 0;
+      let clampedDy = 0;
+      let targetR = pointerStart.r;
+      let targetC = pointerStart.c;
+
+      if (lockedDirection === 'horizontal') {
+        clampedDx = Math.max(-maxDrag, Math.min(maxDrag, dx));
+        targetC += clampedDx > 0 ? 1 : -1;
+      } else {
+        clampedDy = Math.max(-maxDrag, Math.min(maxDrag, dy));
+        targetR += clampedDy > 0 ? 1 : -1;
+      }
+
+      // Ensure target is within grid boundaries
+      if (
+        targetR < 0 ||
+        targetR >= gameState.levelConfig.boardRows ||
+        targetC < 0 ||
+        targetC >= gameState.levelConfig.boardCols
+      ) {
+        targetR = -1;
+        targetC = -1;
+      }
+
+      dragOffset = {
+        r: pointerStart.r,
+        c: pointerStart.c,
+        dx: clampedDx,
+        dy: clampedDy,
+        targetR,
+        targetC,
+      };
     }
   }
 
   async function handlePointerUp(e: PointerEvent) {
     if (!pointerStart || !engine || !gameState || gameState.isProcessing) {
       pointerStart = null;
+      dragOffset = null;
+      lockedDirection = null;
       return;
     }
 
     const start = pointerStart;
     const dx = e.clientX - start.x;
     const dy = e.clientY - start.y;
-    pointerStart = null;
+    const currentLockedDir = lockedDirection;
 
-    const threshold = 25; // Reliable swipe distance threshold
+    pointerStart = null;
+    dragOffset = null;
+    lockedDirection = null;
+
+    const threshold = 14;
 
     if (Math.abs(dx) < threshold && Math.abs(dy) < threshold) {
       return;
@@ -110,7 +197,8 @@
     let targetR = start.r;
     let targetC = start.c;
 
-    if (Math.abs(dx) > Math.abs(dy)) {
+    const dir = currentLockedDir || (Math.abs(dx) > Math.abs(dy) ? 'horizontal' : 'vertical');
+    if (dir === 'horizontal') {
       targetC += dx > 0 ? 1 : -1;
     } else {
       targetR += dy > 0 ? 1 : -1;
@@ -132,7 +220,6 @@
     gameState = { ...engine.state };
 
     if (success) {
-      soundFx.playMatchSound(engine.state.comboCount);
       if (engine.state.status !== 'playing') {
         handleGameOver(engine.state.status);
       }
@@ -141,12 +228,14 @@
 
   function handlePointerCancel() {
     pointerStart = null;
+    dragOffset = null;
+    lockedDirection = null;
     swipeHandled = false;
   }
 </script>
 
 {#if gameState}
-  <div class="game-wrapper">
+  <div class="game-wrapper phase-{gameState.phase}">
     <div class="header-card">
       <div class="info-box">
         <span class="info-label">SCORE</span>
@@ -170,14 +259,80 @@
 
     <div class="candy-board-frame">
       <div
-        class="candy-grid"
+        bind:this={gridElement}
+        class="candy-grid {gameState.phase === 'refilling' ? 'shuffling' : ''}"
         style="grid-template-columns: repeat({gameState.levelConfig.boardCols}, 1fr); grid-template-rows: repeat({gameState.levelConfig.boardRows}, 1fr);"
       >
+        <!-- FIX #5 — Board-wide special effect overlays -->
+        {#if gameState.activeEffects && gameState.activeEffects.length > 0}
+          {#each gameState.activeEffects as effect}
+            {#if effect.type === 'line-h' && effect.row !== undefined}
+              <div
+                class="board-effect-beam-h"
+                style="top: calc({(effect.row / (gameState.levelConfig.boardRows || 8)) * 100}% + {cellPitchY * 0.1}px); height: {cellPitchY * 0.8}px;"
+              ></div>
+            {/if}
+
+            {#if effect.type === 'line-v' && effect.col !== undefined}
+              <div
+                class="board-effect-beam-v"
+                style="left: calc({(effect.col / (gameState.levelConfig.boardCols || 8)) * 100}% + {cellPitchX * 0.1}px); width: {cellPitchX * 0.8}px;"
+              ></div>
+            {/if}
+
+            {#if effect.type === 'bomb' && effect.row !== undefined && effect.col !== undefined}
+              <div
+                class="board-effect-bomb-ring"
+                style="top: {(effect.row + 0.5) * cellPitchY}px; left: {(effect.col + 0.5) * cellPitchX}px;"
+              ></div>
+            {/if}
+
+            {#if effect.type === 'prism'}
+              <div class="board-effect-prism-flash"></div>
+            {/if}
+          {/each}
+        {/if}
+
         {#each gameState.grid as row, r}
           {#each row as tile, c}
+            {@const isSelected = selectedRow === r && selectedCol === c}
+            {@const isDragged = dragOffset && dragOffset.r === r && dragOffset.c === c}
+            {@const isTargetReaction = dragOffset && dragOffset.targetR === r && dragOffset.targetC === c}
+
+            <!-- FIX #3: Two-candy visual swap animation -->
+            {@const swapAnim = gameState.swapAnimation}
+            {@const isSwapTile1 = swapAnim && swapAnim.fromRow === r && swapAnim.fromCol === c}
+            {@const isSwapTile2 = swapAnim && swapAnim.toRow === r && swapAnim.toCol === c}
+
+            {@const swapDx = isSwapTile1
+              ? (swapAnim.toCol - swapAnim.fromCol) * cellPitchX
+              : isSwapTile2
+              ? (swapAnim.fromCol - swapAnim.toCol) * cellPitchX
+              : 0}
+            {@const swapDy = isSwapTile1
+              ? (swapAnim.toRow - swapAnim.fromRow) * cellPitchY
+              : isSwapTile2
+              ? (swapAnim.fromRow - swapAnim.toRow) * cellPitchY
+              : 0}
+
+            <!-- Staggered animation delay based on cell position -->
+            {@const staggerDelay = (r % 4) * 25 + (c % 4) * 15}
+            {@const actualFallDist = tile.isNew && tile.fromRow !== undefined ? (r - tile.fromRow) : (tile.fallDistance || 1)}
+
             <button
               type="button"
-              class="candy-tile type-{tile.type} {selectedRow === r && selectedCol === c ? 'selected' : ''} {tile.matched ? 'matched' : ''} {tile.falling ? 'falling' : ''}"
+              class="candy-tile type-{tile.type} {isSelected ? 'selected' : ''} {tile.matched ? 'matched' : ''} {tile.falling ? 'falling' : ''}"
+              style={
+                isSwapTile1 || isSwapTile2
+                  ? `transform: translate(${swapAnim?.reversing ? 0 : swapDx}px, ${swapAnim?.reversing ? 0 : swapDy}px); transition: transform 0.16s ease-in-out; z-index: 25;`
+                  : isDragged
+                  ? `transform: translate(${dragOffset.dx}px, ${dragOffset.dy}px) scale(1.12); z-index: 20; box-shadow: 0 10px 25px rgba(0,0,0,0.3);`
+                  : isTargetReaction
+                  ? `transform: translate(${-dragOffset.dx * 0.35}px, ${-dragOffset.dy * 0.35}px) scale(0.96); z-index: 10;`
+                  : tile.fallDistance
+                  ? `--fall-dist: ${actualFallDist * cellPitchY}px; animation-delay: ${staggerDelay}ms;`
+                  : ''
+              }
               onclick={() => {
                 if (!swipeHandled) {
                   handleTileClick(r, c);
@@ -198,6 +353,12 @@
               {#if tile.special === 'line-v'}<span class="special-badge">↕</span>{/if}
               {#if tile.special === 'bomb'}<span class="special-badge">💣</span>{/if}
               {#if tile.special === 'prism'}<span class="special-badge">🍩</span>{/if}
+
+              <!-- MUST FIX #8: Lightweight special visual effect overlays -->
+              {#if tile.matched && tile.special === 'line-h'}<div class="special-effect-line-h"></div>{/if}
+              {#if tile.matched && tile.special === 'line-v'}<div class="special-effect-line-v"></div>{/if}
+              {#if tile.matched && tile.special === 'bomb'}<div class="special-effect-bomb"></div>{/if}
+              {#if tile.matched && tile.special === 'prism'}<div class="special-effect-prism"></div>{/if}
 
               {#if tile.obstacle === 'ice-1'}<div class="choco-overlay">🍫</div>{/if}
               {#if tile.obstacle === 'ice-2'}<div class="choco-overlay choco-2">🍫🍫</div>{/if}
@@ -291,6 +452,82 @@
     touch-action: none;
     user-select: none;
     -webkit-user-select: none;
+    position: relative;
+    transition: transform 0.3s ease, filter 0.3s ease;
+  }
+
+  .candy-grid.shuffling {
+    animation: gridShuffle 0.4s ease-in-out;
+  }
+
+  @keyframes gridShuffle {
+    0% { transform: scale(1) rotate(0deg); opacity: 1; }
+    50% { transform: scale(0.92) rotate(3deg); opacity: 0.5; filter: blur(4px); }
+    100% { transform: scale(1) rotate(0deg); opacity: 1; }
+  }
+
+  /* FIX #5: Board-Wide Special Effect Overlays */
+  .board-effect-beam-h {
+    position: absolute;
+    left: 0;
+    right: 0;
+    background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.95), rgba(255,255,255,0));
+    box-shadow: 0 0 20px #ffffff;
+    pointer-events: none;
+    z-index: 30;
+    animation: beamSweepH 0.25s ease-out forwards;
+  }
+
+  .board-effect-beam-v {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background: linear-gradient(180deg, rgba(255,255,255,0), rgba(255,255,255,0.95), rgba(255,255,255,0));
+    box-shadow: 0 0 20px #ffffff;
+    pointer-events: none;
+    z-index: 30;
+    animation: beamSweepV 0.25s ease-out forwards;
+  }
+
+  .board-effect-bomb-ring {
+    position: absolute;
+    width: 140px;
+    height: 140px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(251,191,36,0.9) 0%, rgba(244,63,94,0.7) 50%, rgba(239,68,68,0) 80%);
+    pointer-events: none;
+    z-index: 30;
+    animation: bombExpand 0.28s ease-out forwards;
+  }
+
+  .board-effect-prism-flash {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle, rgba(244,114,182,0.8), rgba(168,85,247,0.8), rgba(59,130,246,0.8));
+    pointer-events: none;
+    z-index: 30;
+    animation: prismFlash 0.3s ease-out forwards;
+  }
+
+  @keyframes beamSweepH {
+    0% { transform: scaleX(0.2); opacity: 1; }
+    100% { transform: scaleX(1); opacity: 0; }
+  }
+
+  @keyframes beamSweepV {
+    0% { transform: scaleY(0.2); opacity: 1; }
+    100% { transform: scaleY(1); opacity: 0; }
+  }
+
+  @keyframes bombExpand {
+    0% { transform: translate(-50%, -50%) scale(0.2); opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(1.8); opacity: 0; }
+  }
+
+  @keyframes prismFlash {
+    0% { opacity: 0.9; transform: scale(0.95); }
+    100% { opacity: 0; transform: scale(1.05); }
   }
 
   .candy-tile {
@@ -312,20 +549,25 @@
     overflow: hidden;
   }
 
+  /* MUST FIX #5 & #6: Dynamic pixel fall animation with subtle stagger */
   .candy-tile.falling {
-    animation: candyDrop 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+    animation: candyDrop 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
   }
 
   .candy-tile.matched {
-    animation: candyPop 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    animation: candyPop 0.22s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
   }
 
   @keyframes candyDrop {
-    from {
-      transform: translateY(-60px) scale(0.9);
-      opacity: 0.5;
+    0% {
+      transform: translateY(calc(var(--fall-dist, 100px) * -1)) scale(0.92);
+      opacity: 0.6;
     }
-    to {
+    75% {
+      transform: translateY(4px) scale(1.03);
+      opacity: 1;
+    }
+    100% {
       transform: translateY(0) scale(1);
       opacity: 1;
     }
@@ -345,7 +587,7 @@
     outline: 4px solid #f43f5e;
     box-shadow: 0 0 20px #f43f5e, 0 0 40px rgba(244, 63, 94, 0.6);
     transform: scale(1.12);
-    z-index: 5;
+    z-index: 15;
     animation: selectedPulse 0.8s infinite alternate ease-in-out;
   }
 
@@ -391,6 +633,47 @@
   @keyframes rotateBadge {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
+  }
+
+  /* MUST FIX #8: Special Visual Effects */
+  .special-effect-line-h {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.9), transparent);
+    animation: lineSweepH 0.22s ease-out forwards;
+  }
+
+  .special-effect-line-v {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, transparent, rgba(255,255,255,0.9), transparent);
+    animation: lineSweepV 0.22s ease-out forwards;
+  }
+
+  .special-effect-bomb {
+    position: absolute;
+    inset: -20px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(251,191,36,0.9) 0%, rgba(239,68,68,0) 70%);
+    animation: bombExpand 0.25s ease-out forwards;
+  }
+
+  .special-effect-prism {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(45deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #8b00ff);
+    opacity: 0.8;
+    animation: prismFlash 0.25s linear infinite;
+  }
+
+  @keyframes lineSweepH {
+    0% { transform: scaleX(0); }
+    100% { transform: scaleX(2); opacity: 0; }
+  }
+
+  @keyframes lineSweepV {
+    0% { transform: scaleY(0); }
+    100% { transform: scaleY(2); opacity: 0; }
   }
 
   .choco-overlay {

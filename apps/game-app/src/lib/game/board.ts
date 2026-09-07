@@ -7,6 +7,10 @@ export interface TileData {
   col: number;
   matched?: boolean;
   falling?: boolean;
+  fallDistance?: number;
+  fromRow?: number;
+  fromCol?: number;
+  isNew?: boolean;
 }
 
 export type Grid = TileData[][];
@@ -23,6 +27,10 @@ export function createRandomTile(row: number, col: number, allowedTypes = TILE_T
     row,
     col,
   };
+}
+
+export function cloneGrid(grid: Grid): Grid {
+  return grid.map((row) => row.map((tile) => ({ ...tile })));
 }
 
 export class GameBoardLogic {
@@ -112,11 +120,14 @@ export class GameBoardLogic {
         if (!this.grid[r][c].type) {
           emptySlots++;
         } else if (emptySlots > 0) {
-          // Drop tile down by emptySlots
           const tile = this.grid[r][c];
           const newRow = r + emptySlots;
+          tile.fromRow = r;
+          tile.fromCol = c;
           tile.row = newRow;
           tile.falling = true;
+          tile.fallDistance = emptySlots;
+          tile.isNew = false;
           this.grid[newRow][c] = tile;
           this.grid[r][c] = {
             id: `empty-${r}-${c}`,
@@ -130,16 +141,27 @@ export class GameBoardLogic {
         }
       }
 
-      // Generate new tiles at top for empty slots
       for (let r = 0; r < emptySlots; r++) {
         const newTile = createRandomTile(r, c);
+        newTile.fromRow = r - emptySlots;
+        newTile.fromCol = c;
         newTile.falling = true;
+        newTile.fallDistance = emptySlots;
+        newTile.isNew = true;
         this.grid[r][c] = newTile;
         newTiles.push(newTile);
       }
     }
 
     return { fallen, newTiles };
+  }
+
+  resetTileMetadata(tile: TileData): void {
+    tile.falling = false;
+    tile.fallDistance = 0;
+    tile.fromRow = undefined;
+    tile.fromCol = undefined;
+    tile.isNew = false;
   }
 
   shuffle(): void {

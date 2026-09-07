@@ -1,7 +1,26 @@
-import { GameBoardLogic, type Grid, type TileData } from './board';
+import { GameBoardLogic, cloneGrid, type Grid, type TileData } from './board';
 import { MatchDetector } from './match-detector';
 import { ScoringSystem } from './scoring';
 import { LevelManager, type LevelConfig } from './level-manager';
+
+export type GamePhase =
+  | 'idle'
+  | 'swapping'
+  | 'invalid-swap'
+  | 'matching'
+  | 'removing'
+  | 'falling'
+  | 'refilling'
+  | 'cascade'
+  | 'won'
+  | 'lost';
+
+export interface SpecialEffect {
+  type: 'line-h' | 'line-v' | 'bomb' | 'prism';
+  row?: number;
+  col?: number;
+  targetType?: string;
+}
 
 export interface GameEngineState {
   levelConfig: LevelConfig;
@@ -13,7 +32,10 @@ export interface GameEngineState {
   comboCount: number;
   isProcessing: boolean;
   status: 'playing' | 'won' | 'lost';
+  phase: GamePhase;
+  swapAnimation?: { fromRow: number; fromCol: number; toRow: number; toCol: number; reversing?: boolean } | null;
   bannerMessage?: string;
+  activeEffects?: SpecialEffect[];
 }
 
 export class GameEngine {
@@ -22,6 +44,7 @@ export class GameEngine {
   scoringSystem: ScoringSystem;
   levelManager: LevelManager;
   state: GameEngineState;
+  onCascade?: (combo: number) => void;
 
   constructor(levelId: number) {
     this.levelManager = new LevelManager();
@@ -42,7 +65,7 @@ export class GameEngine {
 
     this.state = {
       levelConfig: config,
-      grid: this.boardLogic.grid,
+      grid: cloneGrid(this.boardLogic.grid),
       score: 0,
       remainingMoves: config.moves,
       collectedCount: 0,
@@ -50,6 +73,9 @@ export class GameEngine {
       comboCount: 0,
       isProcessing: false,
       status: 'playing',
+      phase: 'idle',
+      swapAnimation: null,
+      activeEffects: [],
     };
   }
 
@@ -57,28 +83,43 @@ export class GameEngine {
     if (this.state.isProcessing || this.state.status !== 'playing') return false;
 
     this.state.isProcessing = true;
+    this.state.bannerMessage = undefined; // FIX #9 — Clear banner message at start of move
+    this.state.comboCount = 0;
     this.state.remainingMoves--;
+    this.state.phase = 'swapping';
+    this.state.swapAnimation = { fromRow: r1, fromCol: c1, toRow: r2, toCol: c2, reversing: false };
 
     // Perform swap
     this.boardLogic.swapTiles(r1, c1, r2, c2);
-    this.state.grid = [...this.boardLogic.grid];
+    this.state.grid = cloneGrid(this.boardLogic.grid);
+
+    // Brief swap animation delay (FIX #1 — 150ms duration)
+    await new Promise((res) => setTimeout(res, 150));
 
     // Check for matches
     const matches = this.matchDetector.findMatches(
       this.boardLogic.grid,
       this.boardLogic.rows,
-      this.boardLogic.cols
+      this.boardLogic.cols,
+      { r1, c1, r2, c2 }
     );
 
     if (matches.matchedTiles.length === 0) {
-      // Revert invalid swap
-      await new Promise((res) => setTimeout(res, 200));
+      // Revert invalid swap after a brief reverse animation delay
+      this.state.phase = 'invalid-swap';
+      this.state.swapAnimation = { fromRow: r1, fromCol: c1, toRow: r2, toCol: c2, reversing: true };
+      await new Promise((res) => setTimeout(res, 160));
+
       this.boardLogic.swapTiles(r1, c1, r2, c2);
-      this.state.grid = [...this.boardLogic.grid];
+      this.state.grid = cloneGrid(this.boardLogic.grid);
       this.state.remainingMoves++; // refund invalid move
+      this.state.phase = 'idle';
+      this.state.swapAnimation = null;
       this.state.isProcessing = false;
       return false;
     }
+
+    this.state.swapAnimation = null;
 
     // Process cascading match loop
     let currentCombo = 1;
@@ -88,13 +129,30 @@ export class GameEngine {
       const matchResult = this.matchDetector.findMatches(
         this.boardLogic.grid,
         this.boardLogic.rows,
-        this.boardLogic.cols
+        this.boardLogic.cols,
+        currentCombo === 1 ? { r1, c1, r2, c2 } : undefined
       );
 
       if (matchResult.matchedTiles.length === 0) {
         hasMoreMatches = false;
         break;
       }
+
+      // FIX #4 — Trigger cascade sound hook per resolution stage
+      this.onCascade?.(currentCombo);
+
+      this.state.comboCount = currentCombo;
+      this.state.phase = currentCombo === 1 ? 'matching' : 'cascade';
+
+      // FIX #5 — Populate board-wide active visual effects
+      const effects: SpecialEffect[] = [];
+      matchResult.matchedTiles.forEach((t) => {
+        if (t.special === 'line-h') effects.push({ type: 'line-h', row: t.row });
+        if (t.special === 'line-v') effects.push({ type: 'line-v', col: t.col });
+        if (t.special === 'bomb') effects.push({ type: 'bomb', row: t.row, col: t.col });
+        if (t.special === 'prism') effects.push({ type: 'prism', targetType: t.type });
+      });
+      this.state.activeEffects = effects;
 
       // Calculate score & combo
       const scoreBreakdown = this.scoringSystem.calculateScore(
@@ -104,6 +162,8 @@ export class GameEngine {
       this.state.score += scoreBreakdown.points;
       if (scoreBreakdown.bonusText) {
         this.state.bannerMessage = scoreBreakdown.bonusText;
+      } else if (currentCombo > 1) {
+        this.state.bannerMessage = `COMBO x${currentCombo}! 🔥 +${scoreBreakdown.points}`;
       }
 
       // Track objective progress
@@ -123,65 +183,97 @@ export class GameEngine {
         }
       });
 
-      // Phase 1: Highlight and clear matched tiles with pop animation
+      // Phase 1: Highlight matched tiles with pop animation
       matchResult.matchedTiles.forEach((t) => {
         this.boardLogic.grid[t.row][t.col].matched = true;
       });
-      this.state.grid = JSON.parse(JSON.stringify(this.boardLogic.grid));
-      await new Promise((res) => setTimeout(res, 200));
+      this.state.grid = cloneGrid(this.boardLogic.grid);
+      await new Promise((res) => setTimeout(res, 220));
 
+      this.state.activeEffects = [];
+
+      // Phase 2: Clear matched tiles & place created special tile (FIX #2 — preserve matched candy type!)
+      this.state.phase = 'removing';
       matchResult.matchedTiles.forEach((t) => {
         this.boardLogic.grid[t.row][t.col].type = '';
         this.boardLogic.grid[t.row][t.col].special = 'none';
         this.boardLogic.grid[t.row][t.col].matched = false;
       });
 
-      // Create special tile if 4+ match formed
       if (matchResult.createdSpecialTile) {
-        const { row, col, special } = matchResult.createdSpecialTile;
-        this.boardLogic.grid[row][col].type = 'ruby';
+        const { row, col, special, type } = matchResult.createdSpecialTile;
+        this.boardLogic.grid[row][col].type = type;
         this.boardLogic.grid[row][col].special = special;
       }
 
-      // Phase 2: Apply gravity & spawn falling tiles from top
+      // Phase 3: Apply gravity & spawn falling tiles from top
+      this.state.phase = 'falling';
       const { fallen, newTiles } = this.boardLogic.applyGravityAndRefill();
-      this.state.grid = JSON.parse(JSON.stringify(this.boardLogic.grid));
-      await new Promise((res) => setTimeout(res, 350));
+      this.state.grid = cloneGrid(this.boardLogic.grid);
+      await new Promise((res) => setTimeout(res, 320));
 
-      // Reset falling flags after animation completes
-      fallen.forEach(t => t.falling = false);
-      newTiles.forEach(t => t.falling = false);
-      this.state.grid = JSON.parse(JSON.stringify(this.boardLogic.grid));
+      // FIX #10 — Reset animation metadata cleanly after fall completes
+      fallen.forEach((t) => this.boardLogic.resetTileMetadata(t));
+      newTiles.forEach((t) => this.boardLogic.resetTileMetadata(t));
+      this.state.grid = cloneGrid(this.boardLogic.grid);
 
       currentCombo++;
-      this.state.comboCount = currentCombo;
     }
 
     // Check Win/Loss conditions
     this.checkGameStatus();
+    this.state.phase = this.state.status === 'playing' ? 'idle' : (this.state.status as GamePhase);
     this.state.isProcessing = false;
     return true;
   }
 
-  useHammer(row: number, col: number): boolean {
+  async useHammer(row: number, col: number): Promise<boolean> {
     if (this.state.isProcessing || this.state.status !== 'playing') return false;
 
+    this.state.isProcessing = true;
+    this.state.bannerMessage = undefined;
+    this.state.phase = 'removing';
+
     const tile = this.boardLogic.grid[row][col];
+    tile.matched = true;
+    this.state.grid = cloneGrid(this.boardLogic.grid);
+    await new Promise((res) => setTimeout(res, 200));
+
     tile.type = '';
     tile.special = 'none';
     tile.obstacle = 'none';
+    tile.matched = false;
 
-    this.boardLogic.applyGravityAndRefill();
-    this.state.grid = [...this.boardLogic.grid];
+    this.state.phase = 'falling';
+    const { fallen, newTiles } = this.boardLogic.applyGravityAndRefill();
+    this.state.grid = cloneGrid(this.boardLogic.grid);
+    await new Promise((res) => setTimeout(res, 320));
+
+    fallen.forEach((t) => this.boardLogic.resetTileMetadata(t));
+    newTiles.forEach((t) => this.boardLogic.resetTileMetadata(t));
+
+    this.state.grid = cloneGrid(this.boardLogic.grid);
     this.state.score += 100;
     this.checkGameStatus();
+    this.state.phase = this.state.status === 'playing' ? 'idle' : (this.state.status as GamePhase);
+    this.state.isProcessing = false;
     return true;
   }
 
-  useShuffle(): boolean {
+  async useShuffle(): Promise<boolean> {
     if (this.state.isProcessing || this.state.status !== 'playing') return false;
+
+    this.state.isProcessing = true;
+    this.state.bannerMessage = undefined;
+    this.state.phase = 'refilling';
+
+    await new Promise((res) => setTimeout(res, 150));
     this.boardLogic.shuffle();
-    this.state.grid = [...this.boardLogic.grid];
+    this.state.grid = cloneGrid(this.boardLogic.grid);
+    await new Promise((res) => setTimeout(res, 250));
+
+    this.state.phase = 'idle';
+    this.state.isProcessing = false;
     return true;
   }
 
