@@ -1,4 +1,4 @@
-import { Component, Prop, Event, EventEmitter, h, Element } from '@stencil/core';
+import { Component, Prop, Event, EventEmitter, h, Element, Watch, Method } from '@stencil/core';
 import { CanvasGameRenderer, type BoardTile, type SwapAnimation, type SpecialEffect } from './canvas-game-renderer';
 import { InputController } from './input-controller';
 
@@ -26,16 +26,37 @@ export interface BoardTileData {
 export class GameBoard {
   @Element() el!: HTMLElement;
 
-  @Prop() gridData: BoardTileData[][] | string = [];
-  @Prop() rows: number = 8;
-  @Prop() cols: number = 8;
-  @Prop() selectedRow: number = -1;
-  @Prop() selectedCol: number = -1;
-  @Prop() disabled: boolean = false;
-  @Prop() phase: string = 'idle';
-  @Prop() swapAnimation: SwapAnimation | string | null = null;
-  @Prop() activeEffects: SpecialEffect[] | string = [];
-  @Prop() showFps: boolean = false;
+  @Prop({ attribute: 'grid-data', mutable: true }) gridData: any = [];
+  @Prop({ mutable: true }) rows: number = 8;
+  @Prop({ mutable: true }) cols: number = 8;
+  @Prop({ attribute: 'selected-row', mutable: true }) selectedRow: number = -1;
+  @Prop({ attribute: 'selected-col', mutable: true }) selectedCol: number = -1;
+  @Prop({ mutable: true }) disabled: boolean = false;
+  @Prop({ mutable: true }) phase: string = 'idle';
+  @Prop({ attribute: 'swap-animation', mutable: true }) swapAnimation: any = null;
+  @Prop({ attribute: 'active-effects', mutable: true }) activeEffects: any = [];
+  @Prop({ attribute: 'is-fever', mutable: true }) isFever: boolean = false;
+  @Prop({ attribute: 'show-fps', mutable: true }) showFps: boolean = false;
+
+  @Watch('gridData')
+  @Watch('rows')
+  @Watch('cols')
+  @Watch('selectedRow')
+  @Watch('selectedCol')
+  @Watch('disabled')
+  @Watch('phase')
+  @Watch('swapAnimation')
+  @Watch('activeEffects')
+  @Watch('isFever')
+  @Watch('showFps')
+  onPropChange() {
+    this.updateRendererProps();
+  }
+
+  @Method()
+  async forceRefresh() {
+    this.updateRendererProps();
+  }
 
   @Event({ eventName: 'tile-swapped' }) tileSwapped!: EventEmitter<{
     from: { row: number; col: number };
@@ -54,42 +75,87 @@ export class GameBoard {
   private resizeObserver?: ResizeObserver;
 
   private get parsedGridData(): BoardTile[][] {
-    if (typeof this.gridData === 'string') {
+    const data = this.gridData !== undefined && this.gridData !== null && (Array.isArray(this.gridData) ? this.gridData.length > 0 : true)
+      ? this.gridData
+      : (this.el as any)?.gridData;
+
+    if (Array.isArray(data)) {
+      return data as unknown as BoardTile[][];
+    }
+    if (typeof data === 'string' && data.trim().length > 0) {
       try {
-        return JSON.parse(this.gridData);
+        return JSON.parse(data);
       } catch (e) {
         return [];
       }
     }
-    return (this.gridData as unknown as BoardTile[][]) || [];
+    const attrData = this.el?.getAttribute('grid-data');
+    if (attrData && typeof attrData === 'string' && attrData.trim().length > 0) {
+      try {
+        return JSON.parse(attrData);
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
   }
 
   private get parsedSwapAnimation(): SwapAnimation | null {
-    if (typeof this.swapAnimation === 'string') {
+    const anim = this.swapAnimation ?? (this.el as any)?.swapAnimation;
+    if (typeof anim === 'object' && anim !== null) {
+      return anim as unknown as SwapAnimation;
+    }
+    if (typeof anim === 'string' && anim.trim().length > 0) {
       try {
-        return JSON.parse(this.swapAnimation);
+        return JSON.parse(anim);
       } catch (e) {
         return null;
       }
     }
-    return this.swapAnimation || null;
+    const attrAnim = this.el?.getAttribute('swap-animation');
+    if (attrAnim && typeof attrAnim === 'string' && attrAnim.trim().length > 0) {
+      try {
+        return JSON.parse(attrAnim);
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
   }
 
   private get parsedActiveEffects(): SpecialEffect[] {
-    if (typeof this.activeEffects === 'string') {
+    const effects = this.activeEffects ?? (this.el as any)?.activeEffects;
+    if (Array.isArray(effects)) {
+      return effects as unknown as SpecialEffect[];
+    }
+    if (typeof effects === 'string' && effects.trim().length > 0) {
       try {
-        return JSON.parse(this.activeEffects);
+        return JSON.parse(effects);
       } catch (e) {
         return [];
       }
     }
-    return this.activeEffects || [];
+    const attrEffects = this.el?.getAttribute('active-effects');
+    if (attrEffects && typeof attrEffects === 'string' && attrEffects.trim().length > 0) {
+      try {
+        return JSON.parse(attrEffects);
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
   }
 
   componentDidLoad() {
     if (!this.canvasEl) return;
 
     this.renderer = new CanvasGameRenderer(this.canvasEl);
+
+    const rect = this.containerEl?.getBoundingClientRect();
+    const w = rect?.width || this.containerEl?.clientWidth || 360;
+    const h = rect?.height || this.containerEl?.clientHeight || 360;
+    this.renderer.resize(w > 0 ? w : 360, h > 0 ? h : 360);
+
     this.updateRendererProps();
 
     this.inputController = new InputController(
@@ -103,14 +169,21 @@ export class GameBoard {
       this.resizeObserver = new ResizeObserver((entries) => {
         for (const entry of entries) {
           const { width, height } = entry.contentRect;
-          this.renderer?.resize(width, height);
+          if (width > 0 && height > 0) {
+            this.renderer?.resize(width, height);
+          }
         }
       });
       this.resizeObserver.observe(this.containerEl);
-    } else {
-      const rect = this.containerEl?.getBoundingClientRect();
-      if (rect) this.renderer.resize(rect.width, rect.height);
     }
+  }
+
+  componentWillRender() {
+    this.updateRendererProps();
+  }
+
+  componentDidRender() {
+    this.updateRendererProps();
   }
 
   componentDidUpdate() {
@@ -131,6 +204,7 @@ export class GameBoard {
     this.renderer.selectedRow = this.selectedRow;
     this.renderer.selectedCol = this.selectedCol;
     this.renderer.disabled = this.disabled;
+    this.renderer.isFever = this.isFever;
     this.renderer.showFps = this.showFps;
     this.renderer.setPhase(this.phase);
     this.renderer.setSwapAnimation(this.parsedSwapAnimation);

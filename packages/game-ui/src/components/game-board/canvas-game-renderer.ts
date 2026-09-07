@@ -49,6 +49,26 @@ export interface Particle {
   maxLife: number;
 }
 
+export interface VisualTileState {
+  id: string;
+  type: string;
+  special?: string;
+  obstacle?: string;
+  row: number;
+  col: number;
+  startX: number;
+  startY: number;
+  targetX: number;
+  targetY: number;
+  currentX: number;
+  currentY: number;
+  startTime: number;
+  duration: number;
+  delay: number;
+  isNew?: boolean;
+  matched?: boolean;
+}
+
 export interface CandyTheme {
   bgStart: string;
   bgEnd: string;
@@ -95,9 +115,11 @@ export class CanvasGameRenderer {
   public phase: string = 'idle';
   public disabled: boolean = false;
   public showFps: boolean = false;
+  public isFever = false;
 
   private dragState: DragState | null = null;
   private particles: Particle[] = [];
+  private visualTiles: Map<string, VisualTileState> = new Map();
   private animFrameId: number | null = null;
   private lastTime: number = 0;
   private phaseStartTime: number = 0;
@@ -131,8 +153,13 @@ export class CanvasGameRenderer {
     this.canvas.style.width = `${cssWidth}px`;
     this.canvas.style.height = `${cssHeight}px`;
 
-    this.ctx.scale(this.dpr, this.dpr);
+    if (typeof this.ctx.setTransform === 'function') {
+      this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    } else {
+      this.ctx.scale(this.dpr, this.dpr);
+    }
     this.recalculateGeometry();
+    this.syncVisualTiles(true);
   }
 
   public recalculateGeometry(): void {
@@ -193,6 +220,116 @@ export class CanvasGameRenderer {
 
   public setGrid(grid: BoardTile[][]): void {
     this.grid = grid || [];
+    this.syncVisualTiles(false);
+  }
+
+  public getVisualTilePosition(id: string): { x: number; y: number } | null {
+    const vt = this.visualTiles.get(id);
+    return vt ? { x: vt.currentX, y: vt.currentY } : null;
+  }
+
+  private syncVisualTiles(forceSnap: boolean = false): void {
+    if (!this.grid || this.grid.length === 0) return;
+    const now = performance.now();
+    const activeIds = new Set<string>();
+
+    for (let r = 0; r < this.rows; r++) {
+      if (!this.grid[r]) continue;
+      for (let c = 0; c < this.cols; c++) {
+        const tile = this.grid[r][c];
+        if (!tile || !tile.id || !tile.type) continue;
+        activeIds.add(tile.id);
+
+        const targetX = this.originX + c * this.cellPitchX;
+        const targetY = this.originY + r * this.cellPitchY;
+
+        if (this.visualTiles.has(tile.id)) {
+          const existing = this.visualTiles.get(tile.id)!;
+          existing.type = tile.type;
+          existing.special = tile.special;
+          existing.obstacle = tile.obstacle;
+          existing.matched = tile.matched;
+          existing.row = r;
+          existing.col = c;
+
+          if (forceSnap) {
+            existing.startX = targetX;
+            existing.startY = targetY;
+            existing.currentX = targetX;
+            existing.currentY = targetY;
+            existing.targetX = targetX;
+            existing.targetY = targetY;
+          } else if (tile.falling || Math.abs(existing.targetY - targetY) > 2 || Math.abs(existing.targetX - targetX) > 2) {
+            existing.startX = existing.currentX;
+            existing.startY = existing.currentY;
+            existing.targetX = targetX;
+            existing.targetY = targetY;
+            existing.startTime = now;
+            existing.duration = 300;
+            existing.delay = c * 12; // Column stagger
+            existing.isNew = false;
+          }
+        } else {
+          // Newly spawned tile
+          if (forceSnap) {
+            this.visualTiles.set(tile.id, {
+              id: tile.id,
+              type: tile.type,
+              special: tile.special,
+              obstacle: tile.obstacle,
+              row: r,
+              col: c,
+              startX: targetX,
+              startY: targetY,
+              targetX,
+              targetY,
+              currentX: targetX,
+              currentY: targetY,
+              startTime: now,
+              duration: 0,
+              delay: 0,
+              isNew: false,
+              matched: tile.matched,
+            });
+          } else {
+            let spawnRow = tile.fromRow !== undefined ? tile.fromRow : -Math.max(1, tile.fallDistance || 1);
+            if (spawnRow >= 0) {
+              spawnRow = -1 - (this.rows - r);
+            }
+
+            const startX = targetX;
+            const startY = this.originY + spawnRow * this.cellPitchY; // SPAWN ABOVE VISIBLE BOARD
+
+            this.visualTiles.set(tile.id, {
+              id: tile.id,
+              type: tile.type,
+              special: tile.special,
+              obstacle: tile.obstacle,
+              row: r,
+              col: c,
+              startX,
+              startY,
+              targetX,
+              targetY,
+              currentX: startX,
+              currentY: startY,
+              startTime: now,
+              duration: 320,
+              delay: Math.max(0, (this.rows - r)) * 15, // Stagger from top to bottom
+              isNew: true,
+              matched: tile.matched,
+            });
+          }
+        }
+      }
+    }
+
+    // Clean up removed tiles
+    for (const [id] of this.visualTiles) {
+      if (!activeIds.has(id)) {
+        this.visualTiles.delete(id);
+      }
+    }
   }
 
   public setPhase(phase: string): void {
@@ -203,9 +340,11 @@ export class CanvasGameRenderer {
   }
 
   public setSwapAnimation(anim: SwapAnimation | null): void {
-    this.swapAnimation = anim;
-    if (anim) {
-      this.swapStartTime = performance.now();
+    if (JSON.stringify(this.swapAnimation) !== JSON.stringify(anim)) {
+      this.swapAnimation = anim;
+      if (anim) {
+        this.swapStartTime = performance.now();
+      }
     }
   }
 
@@ -290,6 +429,12 @@ export class CanvasGameRenderer {
     }
   }
 
+  public destroy(): void {
+    if (this.animFrameId !== null && typeof window !== 'undefined') {
+      window.cancelAnimationFrame(this.animFrameId);
+    }
+  }
+
   private render(now: number): void {
     const ctx = this.ctx;
     ctx.clearRect(0, 0, this.width, this.height);
@@ -297,17 +442,10 @@ export class CanvasGameRenderer {
     // 1. Draw Board Frame & Background Grid
     this.drawBoardBackground();
 
-    // 2. Draw Board Tiles & Animations
-    if (this.grid && this.grid.length > 0) {
-      for (let r = 0; r < this.rows; r++) {
-        if (!this.grid[r]) continue;
-        for (let c = 0; c < this.cols; c++) {
-          const tile = this.grid[r][c];
-          if (tile) {
-            this.drawTile(tile, r, c, now);
-          }
-        }
-      }
+    // 2. Update Visual Positions & Draw Board Tiles
+    for (const vTile of this.visualTiles.values()) {
+      this.updateTilePosition(vTile, now);
+      this.drawVisualTile(vTile, now);
     }
 
     // 3. Draw Board-Wide Special Effects
@@ -322,10 +460,64 @@ export class CanvasGameRenderer {
     }
   }
 
+  private updateTilePosition(vTile: VisualTileState, now: number): void {
+    const elapsed = now - (vTile.startTime + vTile.delay);
+    if (elapsed <= 0) {
+      vTile.currentX = vTile.startX;
+      vTile.currentY = vTile.startY;
+      return;
+    }
+
+    if (vTile.duration <= 0) {
+      vTile.currentX = vTile.targetX;
+      vTile.currentY = vTile.targetY;
+      return;
+    }
+
+    const progress = Math.min(1, Math.max(0, elapsed / vTile.duration));
+    // Ease out cubic for smooth gravity fall
+    let ease = 1 - Math.pow(1 - progress, 3);
+
+    // Soft landing settling effect at end of fall
+    if (progress > 0.85 && progress < 1 && Math.abs(vTile.targetY - vTile.startY) > 5) {
+      const settleProgress = (progress - 0.85) / 0.15;
+      const bounceOffset = Math.sin(settleProgress * Math.PI) * 2.5; // 2.5px soft bounce
+      vTile.currentX = vTile.startX + (vTile.targetX - vTile.startX) * ease;
+      vTile.currentY = vTile.startY + (vTile.targetY - vTile.startY) * ease + bounceOffset;
+    } else {
+      vTile.currentX = vTile.startX + (vTile.targetX - vTile.startX) * ease;
+      vTile.currentY = vTile.startY + (vTile.targetY - vTile.startY) * ease;
+    }
+  }
+
   private drawBoardBackground(): void {
     const ctx = this.ctx;
     const gridW = this.cols * this.cellPitchX - this.gap;
     const gridH = this.rows * this.cellPitchY - this.gap;
+
+    if (this.isFever) {
+      ctx.save();
+      ctx.strokeStyle = `hsl(${(performance.now() * 0.15) % 360}, 100%, 60%)`;
+      ctx.lineWidth = 4;
+      ctx.shadowColor = '#fbbf24';
+      ctx.shadowBlur = 16;
+      ctx.strokeRect(this.originX - 6, this.originY - 6, gridW + 12, gridH + 12);
+      ctx.restore();
+
+      if (Math.random() < 0.25 && this.particles.length < 50 && !this.prefersReducedMotion) {
+        this.particles.push({
+          x: this.originX + Math.random() * gridW,
+          y: this.originY + Math.random() * gridH,
+          vx: (Math.random() - 0.5) * 2,
+          vy: -1 - Math.random() * 2,
+          size: 3 + Math.random() * 3,
+          color: '#fbbf24',
+          alpha: 1,
+          life: 0,
+          maxLife: 25,
+        });
+      }
+    }
 
     // Draw background cells
     for (let r = 0; r < this.rows; r++) {
@@ -345,15 +537,18 @@ export class CanvasGameRenderer {
     }
   }
 
-  private drawTile(tile: BoardTile, r: number, c: number, now: number): void {
+  private drawVisualTile(vTile: VisualTileState, now: number): void {
     const ctx = this.ctx;
-    if (!tile.type) return;
+    if (!vTile.type) return;
 
-    let posX = this.originX + c * this.cellPitchX;
-    let posY = this.originY + r * this.cellPitchY;
+    let posX = vTile.currentX;
+    let posY = vTile.currentY;
     let scale = 1;
     let alpha = 1;
     let zIndex = 1;
+
+    const r = vTile.row;
+    const c = vTile.col;
 
     // Check Drag Preview State
     const isDragged = this.dragState && this.dragState.fromRow === r && this.dragState.fromCol === c;
@@ -374,40 +569,44 @@ export class CanvasGameRenderer {
     if (this.swapAnimation) {
       const { fromRow, fromCol, toRow, toCol, reversing } = this.swapAnimation;
       const elapsed = now - this.swapStartTime;
-      const duration = 160;
+      const duration = 180;
       let progress = Math.min(1, Math.max(0, elapsed / duration));
 
       if (reversing) {
         progress = 1 - progress;
       }
 
+      const easedProgress = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+
       if (fromRow === r && fromCol === c) {
-        const targetX = this.originX + toCol * this.cellPitchX;
-        const targetY = this.originY + toRow * this.cellPitchY;
-        posX = posX + (targetX - posX) * progress;
-        posY = posY + (targetY - posY) * progress;
+        const startX = this.originX + toCol * this.cellPitchX;
+        const startY = this.originY + toRow * this.cellPitchY;
+        const endX = this.originX + fromCol * this.cellPitchX;
+        const endY = this.originY + fromRow * this.cellPitchY;
+        posX = startX + (endX - startX) * easedProgress;
+        posY = startY + (endY - startY) * easedProgress;
+        scale = 1.08;
         zIndex = 25;
       } else if (toRow === r && toCol === c) {
-        const targetX = this.originX + fromCol * this.cellPitchX;
-        const targetY = this.originY + fromRow * this.cellPitchY;
-        posX = posX + (targetX - posX) * progress;
-        posY = posY + (targetY - posY) * progress;
+        const startX = this.originX + fromCol * this.cellPitchX;
+        const startY = this.originY + fromRow * this.cellPitchY;
+        const endX = this.originX + toCol * this.cellPitchX;
+        const endY = this.originY + toRow * this.cellPitchY;
+        posX = startX + (endX - startX) * easedProgress;
+        posY = startY + (endY - startY) * easedProgress;
+        scale = 1.08;
         zIndex = 25;
       }
     }
 
-    // Check Falling / Gravity Animation State
-    if (tile.falling) {
-      const elapsed = now - this.phaseStartTime;
-      const duration = 320;
-      const progress = Math.min(1, Math.max(0, elapsed / duration));
-      const fallDist = tile.fallDistance || (tile.fromRow !== undefined ? r - tile.fromRow : 1);
-      const startOffsetY = -fallDist * this.cellPitchY;
-
-      // Easing with subtle bounce landing
-      const ease = progress < 0.7 ? (progress / 0.7) ** 2 : 1 + Math.sin((progress - 0.7) * Math.PI * 3.3) * 0.05;
-      posY += startOffsetY * (1 - Math.min(1, ease));
-      alpha = 0.5 + progress * 0.5;
+    // Newly spawned tile scale & alpha entry effect
+    if (vTile.isNew) {
+      const elapsed = now - (vTile.startTime + vTile.delay);
+      if (elapsed > 0 && vTile.duration > 0) {
+        const progress = Math.min(1, Math.max(0, elapsed / vTile.duration));
+        scale = 0.85 + progress * 0.15;
+        alpha = Math.min(1, 0.4 + progress * 0.6);
+      }
     }
 
     // Check Selection State
@@ -418,7 +617,7 @@ export class CanvasGameRenderer {
     }
 
     // Check Matched / Pop Animation State
-    if (tile.matched) {
+    if (vTile.matched) {
       const elapsed = now - this.phaseStartTime;
       const duration = 220;
       const progress = Math.min(1, Math.max(0, elapsed / duration));
@@ -427,7 +626,7 @@ export class CanvasGameRenderer {
     }
 
     // Render Tile Card on Canvas
-    const theme = CANDY_THEMES[tile.type] || CANDY_THEMES.default;
+    const theme = CANDY_THEMES[vTile.type] || CANDY_THEMES.default;
     const w = this.cellWidth * scale;
     const h = this.cellHeight * scale;
     const cx = posX + this.cellWidth / 2;
@@ -473,7 +672,7 @@ export class CanvasGameRenderer {
     ctx.fillText(theme.symbol, 0, 2);
 
     // Render Special Badge Overlay
-    if (tile.special && tile.special !== 'none') {
+    if (vTile.special && vTile.special !== 'none') {
       ctx.beginPath();
       ctx.arc(w / 2 - 8 * scale, -h / 2 + 8 * scale, 9 * scale, 0, Math.PI * 2);
       ctx.fillStyle = '#ffffff';
@@ -481,12 +680,12 @@ export class CanvasGameRenderer {
       ctx.fillStyle = '#e11d48';
       ctx.font = `bold ${Math.round(11 * scale)}px sans-serif`;
       const badgeIcon =
-        tile.special === 'line-h' ? '↔' : tile.special === 'line-v' ? '↕' : tile.special === 'bomb' ? '💣' : '🍩';
+        vTile.special === 'line-h' ? '↔' : vTile.special === 'line-v' ? '↕' : vTile.special === 'bomb' ? '💣' : '🍩';
       ctx.fillText(badgeIcon, w / 2 - 8 * scale, -h / 2 + 9 * scale);
     }
 
-    // Render Obstacle Overlay (Ice Blocks)
-    if (tile.obstacle && tile.obstacle !== 'none') {
+    // Render Obstacle Overlay (Chocolate Blocks)
+    if (vTile.obstacle && vTile.obstacle !== 'none') {
       ctx.beginPath();
       ctx.roundRect(-w / 2, -h / 2, w, h, radius);
       ctx.fillStyle = 'rgba(120, 53, 15, 0.85)';
@@ -518,29 +717,14 @@ export class CanvasGameRenderer {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
         ctx.shadowColor = '#ffffff';
         ctx.shadowBlur = 20;
-        ctx.fillRect(this.originX, y - 8, this.cols * this.cellPitchX - this.gap, 16);
+        ctx.fillRect(this.originX, y - 6, this.cols * this.cellPitchX - this.gap, 12);
       } else if (eff.type === 'line-v' && eff.col !== undefined) {
         const x = this.originX + eff.col * this.cellPitchX + this.cellWidth / 2;
         ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
         ctx.shadowColor = '#ffffff';
         ctx.shadowBlur = 20;
-        ctx.fillRect(x - 8, this.originY, 16, this.rows * this.cellPitchY - this.gap);
-      } else if (eff.type === 'bomb' && eff.row !== undefined && eff.col !== undefined) {
-        const cx = this.originX + (eff.col + 0.5) * this.cellPitchX;
-        const cy = this.originY + (eff.row + 0.5) * this.cellPitchY;
-        const radius = (progress * 1.6 + 0.3) * this.cellPitchX;
-        ctx.beginPath();
-        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(251, 191, 36, 0.6)';
-        ctx.fill();
-        ctx.strokeStyle = '#f43f5e';
-        ctx.lineWidth = 4;
-        ctx.stroke();
-      } else if (eff.type === 'prism') {
-        ctx.fillStyle = 'rgba(244, 114, 182, 0.4)';
-        ctx.fillRect(0, 0, this.width, this.height);
+        ctx.fillRect(x - 6, this.originY, 12, this.rows * this.cellPitchY - this.gap);
       }
-
       ctx.restore();
     });
   }
@@ -549,7 +733,7 @@ export class CanvasGameRenderer {
     const ctx = this.ctx;
     this.particles.forEach((p) => {
       ctx.save();
-      ctx.globalAlpha = p.alpha;
+      ctx.globalAlpha = Math.max(0, p.alpha);
       ctx.fillStyle = p.color;
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
@@ -561,22 +745,11 @@ export class CanvasGameRenderer {
   private drawFpsOverlay(): void {
     const ctx = this.ctx;
     ctx.save();
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
-    ctx.fillRect(8, 8, 110, 26);
-    ctx.fillStyle = '#10b981';
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(8, 8, 85, 24);
+    ctx.fillStyle = '#34d399';
     ctx.font = 'bold 12px monospace';
-    ctx.fillText(`FPS: ${this.fps} | ${this.frameTimeMs.toFixed(1)}ms`, 14, 25);
+    ctx.fillText(`${this.fps} FPS`, 14, 24);
     ctx.restore();
-  }
-
-  public destroy(): void {
-    if (this.animFrameId !== null) {
-      if (typeof window !== 'undefined') {
-        window.cancelAnimationFrame(this.animFrameId);
-      } else if (typeof cancelAnimationFrame !== 'undefined') {
-        cancelAnimationFrame(this.animFrameId);
-      }
-      this.animFrameId = null;
-    }
   }
 }

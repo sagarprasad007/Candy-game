@@ -20,6 +20,7 @@ function createMockCanvas(): HTMLCanvasElement {
     save: () => {},
     restore: () => {},
     scale: () => {},
+    setTransform: () => {},
     translate: () => {},
     rotate: () => {},
     beginPath: () => {},
@@ -179,7 +180,63 @@ describe('CanvasGameRenderer & InputController Tests', () => {
     expect(cellPx.y).toBeGreaterThanOrEqual(geom.boardOriginY);
   });
 
-  it('6. renderer cleanup cancels requestAnimationFrame and releases state', () => {
+  it('6. new tiles spawn above the visible board and interpolate smoothly', () => {
+    renderer.resize(400, 400);
+    const geom = renderer.getBoardGeometry();
+
+    const newTileId = 'new-tile-test-123';
+    renderer.setGrid([
+      [
+        {
+          id: newTileId,
+          type: 'ruby',
+          row: 0,
+          col: 0,
+          falling: true,
+          fallDistance: 2,
+          fromRow: -2,
+          isNew: true,
+        },
+      ],
+    ]);
+
+    const initialPos = renderer.getVisualTilePosition(newTileId);
+    expect(initialPos).not.toBeNull();
+    // Initial position for new tile must start ABOVE originY (top of board)
+    expect(initialPos!.y).toBeLessThan(geom.boardOriginY);
+  });
+
+  it('7. existing tiles preserve identity and interpolate from previous position to target position', () => {
+    renderer.resize(400, 400);
+    const tileId = 'existing-tile-456';
+
+    // Board state 1
+    renderer.setGrid([
+      [
+        { id: tileId, type: 'sapphire', row: 0, col: 0 },
+      ],
+    ]);
+
+    const pos1 = renderer.getVisualTilePosition(tileId);
+    expect(pos1).not.toBeNull();
+
+    // Board state 2: Tile falls to row 3
+    renderer.setGrid([
+      [],
+      [],
+      [],
+      [
+        { id: tileId, type: 'sapphire', row: 3, col: 0, falling: true, fallDistance: 3, fromRow: 0 },
+      ],
+    ]);
+
+    const pos2 = renderer.getVisualTilePosition(tileId);
+    expect(pos2).not.toBeNull();
+    // Position must start at pos1.y (where it was previously)
+    expect(pos2!.y).toBe(pos1!.y);
+  });
+
+  it('8. renderer cleanup cancels requestAnimationFrame and releases state', () => {
     renderer.destroy();
     expect(true).toBe(true);
   });

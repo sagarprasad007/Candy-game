@@ -5,6 +5,8 @@
   import { playerStore } from '$lib/stores/playerStore';
   import { soundFx } from '$lib/audio/sound';
   import { goto } from '$app/navigation';
+  import { generateStory, type GeneratedStory } from '$lib/game/story-generator';
+  import LevelStoryModal from '$lib/components/LevelStoryModal.svelte';
 
   let levelId = $derived(parseInt(page.params.levelId || '1'));
   let engine: GameEngine | null = $state(null);
@@ -12,8 +14,38 @@
   let selectedRow = $state(-1);
   let selectedCol = $state(-1);
   let isHammerMode = $state(false);
+  let activeStory: GeneratedStory | null = $state(null);
+  let boardEl: any = $state(null);
 
-  onMount(() => {
+  function syncBoardProps() {
+    if (boardEl && gameState) {
+      boardEl.gridData = gameState.grid;
+      boardEl.rows = gameState.levelConfig.boardRows || 8;
+      boardEl.cols = gameState.levelConfig.boardCols || 8;
+      boardEl.selectedRow = selectedRow;
+      boardEl.selectedCol = selectedCol;
+      boardEl.disabled = gameState.isProcessing;
+      boardEl.phase = gameState.phase;
+      boardEl.swapAnimation = gameState.swapAnimation;
+      boardEl.activeEffects = gameState.activeEffects;
+      boardEl.isFever = gameState.isFeverMode;
+      if (typeof boardEl.forceRefresh === 'function') {
+        boardEl.forceRefresh();
+      }
+    }
+  }
+
+  onMount(async () => {
+    if (typeof window !== 'undefined') {
+      try {
+        // @ts-ignore
+        const { defineCustomElement: defineGameBoard } = await import('@cosmic-gems/game-ui/dist/components/game-board.js');
+        defineGameBoard();
+      } catch (err) {
+        console.warn('Stencil custom element loading fallback:', err);
+      }
+    }
+
     if (!playerStore.progress.unlockedLevels.includes(levelId)) {
       goto('/levels');
       return;
@@ -25,6 +57,31 @@
     engine.onCascade = (comboCount: number) => {
       soundFx.playMatchSound(comboCount);
     };
+
+    engine.onStateChange = (newState) => {
+      gameState = { ...newState };
+      syncBoardProps();
+    };
+
+    // Ensure properties are synchronized after custom elements definition & DOM render
+    syncBoardProps();
+    setTimeout(() => {
+      syncBoardProps();
+      if (boardEl && typeof boardEl.componentOnReady === 'function') {
+        boardEl.componentOnReady().then(() => syncBoardProps());
+      }
+    }, 50);
+  });
+
+  // Direct property synchronization to Stencil Web Component
+  $effect(() => {
+    // Read reactive variables to subscribe
+    const g = gameState;
+    const r = selectedRow;
+    const c = selectedCol;
+    if (g && boardEl) {
+      syncBoardProps();
+    }
   });
 
   async function handleTileSwapped(e: CustomEvent<{ from: { row: number; col: number }; to: { row: number; col: number } }>) {
@@ -102,15 +159,33 @@
       soundFx.playWinSound();
       const stars = gameState!.score > gameState!.levelConfig.objective.targetScore * 1.5 ? 3 : 2;
       playerStore.recordLevelCompletion(levelId, gameState!.score, stars);
+
+      activeStory = generateStory({
+        levelId,
+        score: gameState!.score,
+        stars,
+        remainingMoves: gameState!.remainingMoves,
+        comboCount: gameState!.comboCount,
+      });
     } else {
       soundFx.playLossSound();
       playerStore.consumeLife();
+      setTimeout(() => {
+        goto(`/results/${levelId}?status=lost&score=${gameState?.score || 0}`);
+      }, 800);
     }
-    setTimeout(() => {
-      goto(`/results/${levelId}?status=${status}&score=${gameState?.score || 0}`);
-    }, 800);
+  }
+
+  function handleStoryContinue() {
+    const finalScore = gameState?.score || 0;
+    activeStory = null;
+    goto(`/results/${levelId}?status=won&score=${finalScore}`);
   }
 </script>
+
+{#if activeStory}
+  <LevelStoryModal story={activeStory} onContinue={handleStoryContinue} />
+{/if}
 
 {#if gameState}
   <div class="game-wrapper phase-{gameState.phase}">
@@ -131,6 +206,25 @@
       </div>
     </div>
 
+    <!-- FEVER MODE Meter Bar -->
+    <div class="fever-meter-wrapper">
+      <div class="fever-label">
+        {#if gameState.isFeverMode}
+          🔥 FEVER MODE (x2 SCORE BONUS!) 🔥
+        {:else if gameState.streakCount > 0}
+          ⚡ STREAK: {gameState.streakCount}/4
+        {:else}
+          ✨ FEVER CHARGE
+        {/if}
+      </div>
+      <div class="fever-bar">
+        <div
+          class="fever-fill {gameState.isFeverMode ? 'active' : ''}"
+          style="width: {gameState.feverMeter}%"
+        ></div>
+      </div>
+    </div>
+
     {#if gameState.bannerMessage}
       <div class="candy-banner">🍬 {gameState.bannerMessage} 🍭</div>
     {/if}
@@ -143,17 +237,11 @@
       Game level {levelId}. Score: {gameState.score}. Moves remaining: {gameState.remainingMoves}. Swipe a tile toward an adjacent cell to swap.
     </div>
 
-    <div class="candy-board-frame">
+    <div class="board-wrapper">
       <game-board
-        grid-data={JSON.stringify(gameState.grid)}
+        bind:this={boardEl}
         rows={gameState.levelConfig.boardRows || 8}
         cols={gameState.levelConfig.boardCols || 8}
-        selected-row={selectedRow}
-        selected-col={selectedCol}
-        disabled={gameState.isProcessing}
-        phase={gameState.phase}
-        swap-animation={gameState.swapAnimation ? JSON.stringify(gameState.swapAnimation) : null}
-        active-effects={gameState.activeEffects ? JSON.stringify(gameState.activeEffects) : '[]'}
         ontile-swapped={handleTileSwapped}
         ongame-tile-selected={handleGameTileSelected}
       ></game-board>
@@ -190,8 +278,10 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 16px;
+    gap: 12px;
     width: 100%;
+    max-width: 480px;
+    margin: 0 auto;
   }
 
   .header-card {
@@ -199,11 +289,10 @@
     justify-content: space-around;
     align-items: center;
     width: 100%;
-    max-width: 480px;
     background: #ffffff;
     border: 3px solid #f472b6;
     border-radius: 24px;
-    padding: 12px 18px;
+    padding: 10px 16px;
     box-shadow: 0 8px 20px rgba(244, 114, 182, 0.2);
     box-sizing: border-box;
   }
@@ -231,12 +320,50 @@
     font-size: 1.6rem;
   }
 
+  .fever-meter-wrapper {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .fever-label {
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: #b45309;
+    text-align: center;
+  }
+
+  .fever-bar {
+    width: 100%;
+    height: 10px;
+    background: rgba(251, 191, 36, 0.25);
+    border: 2px solid #f59e0b;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .fever-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #fbbf24, #f59e0b, #ef4444);
+    transition: width 0.3s ease;
+  }
+
+  .fever-fill.active {
+    animation: feverPulse 0.5s infinite alternate ease-in-out;
+  }
+
+  @keyframes feverPulse {
+    from { filter: brightness(1); }
+    to { filter: brightness(1.3); }
+  }
+
   .candy-banner {
     background: linear-gradient(90deg, #ec4899, #f43f5e);
     color: #ffffff;
     font-weight: 900;
-    font-size: 1rem;
-    padding: 8px 24px;
+    font-size: 0.95rem;
+    padding: 6px 20px;
     border-radius: 20px;
     box-shadow: 0 6px 15px rgba(244, 63, 94, 0.35);
     animation: popBounce 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
@@ -246,8 +373,8 @@
     background: linear-gradient(90deg, #fbbf24, #f59e0b);
     color: #451a03;
     font-weight: 800;
-    font-size: 0.9rem;
-    padding: 6px 18px;
+    font-size: 0.85rem;
+    padding: 6px 16px;
     border-radius: 16px;
     box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
   }
@@ -258,15 +385,19 @@
     100% { transform: scale(1); opacity: 1; }
   }
 
-  .candy-board-frame {
-    background: linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%);
-    border: 4px solid #f43f5e;
-    border-radius: 28px;
-    padding: 12px;
+  .board-wrapper {
     width: 100%;
     max-width: 480px;
-    box-shadow: 0 15px 35px rgba(225, 29, 72, 0.25);
+    aspect-ratio: 1;
+    display: block;
     box-sizing: border-box;
+  }
+
+  game-board {
+    display: block;
+    width: 100%;
+    height: 100%;
+    aspect-ratio: 1;
   }
 
   .boosters-bar {
@@ -274,7 +405,6 @@
     gap: 16px;
     justify-content: center;
     width: 100%;
-    max-width: 480px;
   }
 
   .booster-btn {

@@ -2,8 +2,10 @@
   display: block;
   width: 100%;
   max-width: 480px;
+  aspect-ratio: 1;
   margin: 0 auto;
   user-select: none;
+  box-sizing: border-box;
 }
 
 .board-container {
@@ -14,7 +16,7 @@
   box-shadow: 0 15px 35px rgba(225, 29, 72, 0.25);
   position: relative;
   width: 100%;
-  aspect-ratio: 1;
+  height: 100%;
   box-sizing: border-box;
   overflow: hidden;
 }

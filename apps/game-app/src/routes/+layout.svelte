@@ -8,8 +8,24 @@
     if (typeof window !== 'undefined') {
       try {
         // @ts-ignore
-        const { defineCustomElements } = await import('@cosmic-gems/game-ui/loader/index.js');
-        defineCustomElements(window);
+        const { defineCustomElement: defineGameBoard } = await import('@cosmic-gems/game-ui/dist/components/game-board.js');
+        // @ts-ignore
+        const { defineCustomElement: defineGameTile } = await import('@cosmic-gems/game-ui/dist/components/game-tile.js');
+        // @ts-ignore
+        const { defineCustomElement: defineGameScore } = await import('@cosmic-gems/game-ui/dist/components/game-score.js');
+        // @ts-ignore
+        const { defineCustomElement: defineLifeCounter } = await import('@cosmic-gems/game-ui/dist/components/life-counter.js');
+        // @ts-ignore
+        const { defineCustomElement: defineLevelCard } = await import('@cosmic-gems/game-ui/dist/components/level-card.js');
+        // @ts-ignore
+        const { defineCustomElement: defineGameModal } = await import('@cosmic-gems/game-ui/dist/components/game-modal.js');
+
+        defineGameBoard();
+        defineGameTile();
+        defineGameScore();
+        defineLifeCounter();
+        defineLevelCard();
+        defineGameModal();
       } catch (err) {
         console.warn('Stencil custom elements registration fallback:', err);
       }

@@ -5,16 +5,12 @@
  * It contains typing information for all components that exist in this project.
  */
 import { HTMLStencilElement, JSXBase } from "@stencil/core/internal";
-import { BoardTileData } from "./components/game-board/game-board";
-import { SpecialEffect, SwapAnimation } from "./components/game-board/canvas-game-renderer";
-export { BoardTileData } from "./components/game-board/game-board";
-export { SpecialEffect, SwapAnimation } from "./components/game-board/canvas-game-renderer";
 export namespace Components {
     interface GameBoard {
         /**
           * @default []
          */
-        "activeEffects": SpecialEffect[] | string;
+        "activeEffects": any;
         /**
           * @default 8
          */
@@ -23,10 +19,15 @@ export namespace Components {
           * @default false
          */
         "disabled": boolean;
+        "forceRefresh": () => Promise<void>;
         /**
           * @default []
          */
-        "gridData": BoardTileData[][] | string;
+        "gridData": any;
+        /**
+          * @default false
+         */
+        "isFever": boolean;
         /**
           * @default 'idle'
          */
@@ -50,7 +51,7 @@ export namespace Components {
         /**
           * @default null
          */
-        "swapAnimation": SwapAnimation | string | null;
+        "swapAnimation": any;
     }
     interface GameModal {
         /**
@@ -284,7 +285,7 @@ declare namespace LocalJSX {
         /**
           * @default []
          */
-        "activeEffects"?: SpecialEffect[] | string;
+        "activeEffects"?: any;
         /**
           * @default 8
          */
@@ -296,7 +297,11 @@ declare namespace LocalJSX {
         /**
           * @default []
          */
-        "gridData"?: BoardTileData[][] | string;
+        "gridData"?: any;
+        /**
+          * @default false
+         */
+        "isFever"?: boolean;
         "onGame-tile-selected"?: (event: GameBoardCustomEvent<{
     row: number;
     col: number;
@@ -328,7 +333,7 @@ declare namespace LocalJSX {
         /**
           * @default null
          */
-        "swapAnimation"?: SwapAnimation | string | null;
+        "swapAnimation"?: any;
     }
     interface GameModal {
         /**
@@ -434,15 +439,16 @@ declare namespace LocalJSX {
     }
 
     interface GameBoardAttributes {
-        "gridData": BoardTileData[][] | string;
+        "gridData": string;
         "rows": number;
         "cols": number;
         "selectedRow": number;
         "selectedCol": number;
         "disabled": boolean;
         "phase": string;
-        "swapAnimation": SwapAnimation | string | null;
-        "activeEffects": SpecialEffect[] | string;
+        "swapAnimation": string;
+        "activeEffects": string;
+        "isFever": boolean;
         "showFps": boolean;
     }
     interface GameModalAttributes {

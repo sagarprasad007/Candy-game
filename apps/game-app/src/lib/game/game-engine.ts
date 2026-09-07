@@ -30,6 +30,9 @@ export interface GameEngineState {
   collectedCount: number;
   destroyedObstacles: number;
   comboCount: number;
+  streakCount: number;
+  isFeverMode: boolean;
+  feverMeter: number;
   isProcessing: boolean;
   status: 'playing' | 'won' | 'lost';
   phase: GamePhase;
@@ -71,12 +74,23 @@ export class GameEngine {
       collectedCount: 0,
       destroyedObstacles: 0,
       comboCount: 0,
+      streakCount: 0,
+      isFeverMode: false,
+      feverMeter: 0,
       isProcessing: false,
       status: 'playing',
       phase: 'idle',
       swapAnimation: null,
       activeEffects: [],
     };
+  }
+
+  public onStateChange?: (state: GameEngineState) => void;
+
+  private notifyStateChange(): void {
+    if (this.onStateChange) {
+      this.onStateChange({ ...this.state });
+    }
   }
 
   async executeMove(r1: number, c1: number, r2: number, c2: number): Promise<boolean> {
@@ -89,12 +103,13 @@ export class GameEngine {
     this.state.phase = 'swapping';
     this.state.swapAnimation = { fromRow: r1, fromCol: c1, toRow: r2, toCol: c2, reversing: false };
 
-    // Perform swap
+    // Perform swap in logical board
     this.boardLogic.swapTiles(r1, c1, r2, c2);
     this.state.grid = cloneGrid(this.boardLogic.grid);
+    this.notifyStateChange();
 
-    // Brief swap animation delay (FIX #1 — 150ms duration)
-    await new Promise((res) => setTimeout(res, 150));
+    // 180ms swap animation duration
+    await new Promise((res) => setTimeout(res, 180));
 
     // Check for matches
     const matches = this.matchDetector.findMatches(
@@ -105,21 +120,33 @@ export class GameEngine {
     );
 
     if (matches.matchedTiles.length === 0) {
-      // Revert invalid swap after a brief reverse animation delay
+      // Revert invalid swap after a reverse animation delay
       this.state.phase = 'invalid-swap';
       this.state.swapAnimation = { fromRow: r1, fromCol: c1, toRow: r2, toCol: c2, reversing: true };
-      await new Promise((res) => setTimeout(res, 160));
+      this.notifyStateChange();
+      await new Promise((res) => setTimeout(res, 180));
 
       this.boardLogic.swapTiles(r1, c1, r2, c2);
       this.state.grid = cloneGrid(this.boardLogic.grid);
       this.state.remainingMoves++; // refund invalid move
+      this.state.streakCount = 0;
+      this.state.isFeverMode = false;
+      this.state.feverMeter = 0;
       this.state.phase = 'idle';
       this.state.swapAnimation = null;
       this.state.isProcessing = false;
+      this.notifyStateChange();
       return false;
     }
 
+    this.state.streakCount++;
+    if (this.state.streakCount >= 4) {
+      this.state.isFeverMode = true;
+      this.state.bannerMessage = '🔥 FEVER MODE ACTIVE! x2 BONUS SCORE! 🔥';
+    }
+    this.state.feverMeter = Math.min(100, (this.state.streakCount / 4) * 100);
     this.state.swapAnimation = null;
+    this.notifyStateChange();
 
     // Process cascading match loop
     let currentCombo = 1;
@@ -188,11 +215,12 @@ export class GameEngine {
         this.boardLogic.grid[t.row][t.col].matched = true;
       });
       this.state.grid = cloneGrid(this.boardLogic.grid);
+      this.notifyStateChange();
       await new Promise((res) => setTimeout(res, 220));
 
       this.state.activeEffects = [];
 
-      // Phase 2: Clear matched tiles & place created special tile (FIX #2 — preserve matched candy type!)
+      // Phase 2: Clear matched tiles & place created special tile
       this.state.phase = 'removing';
       matchResult.matchedTiles.forEach((t) => {
         this.boardLogic.grid[t.row][t.col].type = '';
@@ -210,12 +238,14 @@ export class GameEngine {
       this.state.phase = 'falling';
       const { fallen, newTiles } = this.boardLogic.applyGravityAndRefill();
       this.state.grid = cloneGrid(this.boardLogic.grid);
+      this.notifyStateChange();
       await new Promise((res) => setTimeout(res, 320));
 
       // FIX #10 — Reset animation metadata cleanly after fall completes
       fallen.forEach((t) => this.boardLogic.resetTileMetadata(t));
       newTiles.forEach((t) => this.boardLogic.resetTileMetadata(t));
       this.state.grid = cloneGrid(this.boardLogic.grid);
+      this.notifyStateChange();
 
       currentCombo++;
     }
@@ -224,6 +254,7 @@ export class GameEngine {
     this.checkGameStatus();
     this.state.phase = this.state.status === 'playing' ? 'idle' : (this.state.status as GamePhase);
     this.state.isProcessing = false;
+    this.notifyStateChange();
     return true;
   }
 
@@ -237,6 +268,7 @@ export class GameEngine {
     const tile = this.boardLogic.grid[row][col];
     tile.matched = true;
     this.state.grid = cloneGrid(this.boardLogic.grid);
+    this.notifyStateChange();
     await new Promise((res) => setTimeout(res, 200));
 
     tile.type = '';
@@ -247,6 +279,7 @@ export class GameEngine {
     this.state.phase = 'falling';
     const { fallen, newTiles } = this.boardLogic.applyGravityAndRefill();
     this.state.grid = cloneGrid(this.boardLogic.grid);
+    this.notifyStateChange();
     await new Promise((res) => setTimeout(res, 320));
 
     fallen.forEach((t) => this.boardLogic.resetTileMetadata(t));
@@ -257,6 +290,7 @@ export class GameEngine {
     this.checkGameStatus();
     this.state.phase = this.state.status === 'playing' ? 'idle' : (this.state.status as GamePhase);
     this.state.isProcessing = false;
+    this.notifyStateChange();
     return true;
   }
 
@@ -266,14 +300,17 @@ export class GameEngine {
     this.state.isProcessing = true;
     this.state.bannerMessage = undefined;
     this.state.phase = 'refilling';
+    this.notifyStateChange();
 
     await new Promise((res) => setTimeout(res, 150));
     this.boardLogic.shuffle();
     this.state.grid = cloneGrid(this.boardLogic.grid);
+    this.notifyStateChange();
     await new Promise((res) => setTimeout(res, 250));
 
     this.state.phase = 'idle';
     this.state.isProcessing = false;
+    this.notifyStateChange();
     return true;
   }
 
