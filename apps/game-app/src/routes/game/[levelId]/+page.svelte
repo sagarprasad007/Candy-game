@@ -62,6 +62,57 @@
       goto(`/results/${levelId}?status=${status}&score=${gameState?.score || 0}`);
     }, 800);
   }
+  let touchStart: { x: number; y: number; r: number; c: number } | null = null;
+
+  function handleTouchStart(e: TouchEvent, r: number, c: number) {
+    if (!engine || !gameState || gameState.isProcessing) return;
+    const touch = e.touches[0];
+    touchStart = { x: touch.clientX, y: touch.clientY, r, c };
+  }
+
+  async function handleTouchMove(e: TouchEvent) {
+    if (!touchStart || !engine || !gameState || gameState.isProcessing) return;
+    const touch = e.touches[0];
+    const dx = touch.clientX - touch.x;
+    const dy = touch.clientY - touch.y;
+    const threshold = 15; // Responsive 15px swipe distance
+
+    if (Math.abs(dx) > threshold || Math.abs(dy) > threshold) {
+      e.preventDefault();
+      let targetR = touchStart.r;
+      let targetC = touchStart.c;
+
+      if (Math.abs(dx) > Math.abs(dy)) {
+        targetC += dx > 0 ? 1 : -1;
+      } else {
+        targetR += dy > 0 ? 1 : -1;
+      }
+
+      const fromR = touchStart.r;
+      const fromC = touchStart.c;
+      touchStart = null;
+      selectedRow = -1;
+      selectedCol = -1;
+
+      if (
+        targetR >= 0 && targetR < gameState.levelConfig.boardRows &&
+        targetC >= 0 && targetC < gameState.levelConfig.boardCols
+      ) {
+        const success = await engine.executeMove(fromR, fromC, targetR, targetC);
+        gameState = { ...engine.state };
+        if (success) {
+          soundFx.playMatchSound(engine.state.comboCount);
+          if (engine.state.status !== 'playing') {
+            handleGameOver(engine.state.status);
+          }
+        }
+      }
+    }
+  }
+
+  function handleTouchEnd() {
+    touchStart = null;
+  }
 </script>
 
 {#if gameState}
@@ -98,6 +149,9 @@
               type="button"
               class="candy-tile type-{tile.type} {selectedRow === r && selectedCol === c ? 'selected' : ''}"
               onclick={() => handleTileClick(r, c)}
+              ontouchstart={(e) => handleTouchStart(e, r, c)}
+              ontouchmove={handleTouchMove}
+              ontouchend={handleTouchEnd}
               aria-label="Candy {tile.type}"
             >
               <div class="candy-symbol">
@@ -198,6 +252,7 @@
     gap: 10px;
     width: 100%;
     aspect-ratio: 1;
+    touch-action: none;
   }
 
   .candy-tile {
@@ -211,6 +266,7 @@
     justify-content: center;
     position: relative;
     user-select: none;
+    touch-action: none;
     box-shadow: 0 6px 12px rgba(0, 0, 0, 0.12), inset 0 2px 2px rgba(255, 255, 255, 0.5);
     transition: transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.15s ease;
     overflow: hidden;

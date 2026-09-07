@@ -210,7 +210,7 @@
     flex-direction: column;
   }
 
-  /* Bottom Navigation Bar - Always Visible */
+  /* Bottom Navigation Bar - Permanently Fixed Always Visible */
   .mobile-bottom-nav {
     display: flex;
     position: fixed;
@@ -221,7 +221,7 @@
     background: #ffffff;
     border-top: 2px solid #f472b6;
     box-shadow: 0 -4px 20px rgba(236, 72, 153, 0.2);
-    z-index: 999;
+    z-index: 9999;
     justify-content: space-around;
     align-items: center;
   }
