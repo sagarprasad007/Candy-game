@@ -7,10 +7,11 @@
   onMount(async () => {
     if (typeof window !== 'undefined') {
       try {
-        const { defineCustomElements } = await import('@cosmic-gems/game-ui/loader');
+        // @ts-ignore
+        const { defineCustomElements } = await import('@cosmic-gems/game-ui/loader/index.js');
         defineCustomElements(window);
       } catch (err) {
-        console.warn('Stencil custom elements registration:', err);
+        console.warn('Stencil custom elements registration fallback:', err);
       }
     }
   });

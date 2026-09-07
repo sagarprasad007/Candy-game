@@ -25,7 +25,8 @@
       "types": "./loader/index.d.ts",
       "import": "./loader/index.js",
       "require": "./loader/index.cjs.js"
-    }
+    },
+    "./loader/*": "./loader/*"
   },
   "scripts": {
     "build": "stencil build",
