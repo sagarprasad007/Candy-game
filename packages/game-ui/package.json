@@ -36,6 +36,9 @@
   "dependencies": {
     "@stencil/core": "^4.44.2"
   },
+  "optionalDependencies": {
+    "@rollup/rollup-linux-x64-gnu": "*"
+  },
   "devDependencies": {
     "@types/node": "^20.19.43",
     "typescript": "^5.9.3"
