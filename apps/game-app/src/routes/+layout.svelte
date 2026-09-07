@@ -68,9 +68,9 @@
     display: flex;
     flex-direction: column;
     min-height: 100vh;
-    max-width: 720px;
+    max-width: 900px;
     margin: 0 auto;
-    background: rgba(255, 255, 255, 0.85);
+    background: rgba(255, 255, 255, 0.9);
     backdrop-filter: blur(12px);
     box-shadow: 0 10px 40px rgba(225, 29, 72, 0.15);
     border-left: 2px solid #f472b6;
@@ -79,9 +79,11 @@
 
   .top-nav {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    padding: 14px 24px;
+    gap: 10px;
+    padding: 12px 20px;
     background: linear-gradient(90deg, #ec4899, #f43f5e);
     box-shadow: 0 4px 15px rgba(244, 63, 94, 0.3);
     position: sticky;
@@ -96,27 +98,30 @@
     text-decoration: none;
     color: #ffffff;
     font-weight: 800;
-    font-size: 1.25rem;
-    text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    font-size: 1.2rem;
+    white-space: nowrap;
   }
 
   .logo-candy {
-    font-size: 1.5rem;
+    font-size: 1.4rem;
   }
 
   .nav-links {
     display: flex;
-    gap: 16px;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
   }
 
   .nav-links a {
     color: #fff;
     text-decoration: none;
-    font-size: 0.95rem;
+    font-size: 0.85rem;
     font-weight: 700;
-    padding: 6px 12px;
+    padding: 6px 10px;
     border-radius: 12px;
     background: rgba(255, 255, 255, 0.2);
+    white-space: nowrap;
     transition: all 0.15s ease;
   }
 
@@ -127,22 +132,18 @@
 
   .shital-greeting {
     font-weight: 900;
-    font-size: 0.95rem;
+    font-size: 0.85rem;
+    white-space: nowrap;
     color: #e11d48;
-    background: linear-gradient(90deg, #f43f5e, #ec4899, #a855f7);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
     animation: shitalGlow 1.5s infinite alternate ease-in-out;
   }
 
   @keyframes shitalGlow {
     0% {
       transform: scale(1);
-      filter: drop-shadow(0 0 2px rgba(244, 63, 94, 0.4));
     }
     100% {
-      transform: scale(1.08);
-      filter: drop-shadow(0 0 8px rgba(244, 63, 94, 0.8));
+      transform: scale(1.05);
     }
   }
 
@@ -152,11 +153,12 @@
     gap: 8px;
     background: #ffffff;
     color: #e11d48;
-    padding: 6px 14px;
+    padding: 6px 12px;
     border-radius: 20px;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     font-weight: 800;
-    box-shadow: 0 4px 12px rgba(244, 63, 94, 0.25);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    white-space: nowrap;
   }
 
   .content-area {
