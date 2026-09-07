@@ -33,6 +33,8 @@
 
     <nav class="nav-links">
       <a href="/levels">Levels</a>
+      <a href="/wheel">🎡 Wheel</a>
+      <a href="/leaderboard">Leaderboard</a>
       <a href="/achievements">Trophies</a>
       <a href="/settings">Settings</a>
     </nav>
