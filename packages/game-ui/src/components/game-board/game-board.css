@@ -26,6 +26,7 @@
   gap: 8px;
   width: 100%;
   aspect-ratio: 1;
+  touch-action: none;
 }
 
 .tile-wrapper {
@@ -34,4 +35,5 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  touch-action: none;
 }

@@ -44,13 +44,12 @@ export class GameBoard {
     col: number;
   }>;
 
-  private touchStartPos: { x: number; y: number; row: number; col: number } | null = null;
+  private dragStartPos: { x: number; y: number; row: number; col: number } | null = null;
 
   private handleTileClick = (row: number, col: number) => {
     if (this.disabled) return;
 
     if (this.selectedRow !== -1 && this.selectedCol !== -1) {
-      // If clicking adjacent tile, trigger swap
       const isAdjacent =
         (Math.abs(this.selectedRow - row) === 1 && this.selectedCol === col) ||
         (Math.abs(this.selectedCol - col) === 1 && this.selectedRow === row);
@@ -67,44 +66,49 @@ export class GameBoard {
     this.gameTileSelected.emit({ row, col });
   };
 
-  private handleTouchStart = (e: TouchEvent, row: number, col: number) => {
+  private handlePointerDown = (e: PointerEvent, row: number, col: number) => {
     if (this.disabled) return;
-    const touch = e.touches[0];
-    this.touchStartPos = { x: touch.clientX, y: touch.clientY, row, col };
+    this.dragStartPos = { x: e.clientX, y: e.clientY, row, col };
   };
 
-  private handleTouchEnd = (e: TouchEvent) => {
-    if (!this.touchStartPos || this.disabled) return;
-    const touch = e.changedTouches[0];
-    const dx = touch.clientX - this.touchStartPos.x;
-    const dy = touch.clientY - this.touchStartPos.y;
-    const minSwipeDistance = 25;
+  private handlePointerUp = (e: PointerEvent) => {
+    if (!this.dragStartPos || this.disabled) return;
 
-    let targetRow = this.touchStartPos.row;
-    let targetCol = this.touchStartPos.col;
+    const dx = e.clientX - this.dragStartPos.x;
+    const dy = e.clientY - this.dragStartPos.y;
+    const minSwipeDistance = 20;
 
-    if (Math.abs(dx) > Math.abs(dy)) {
-      if (Math.abs(dx) > minSwipeDistance) {
+    let targetRow = this.dragStartPos.row;
+    let targetCol = this.dragStartPos.col;
+
+    if (Math.abs(dx) > minSwipeDistance || Math.abs(dy) > minSwipeDistance) {
+      if (Math.abs(dx) > Math.abs(dy)) {
         targetCol += dx > 0 ? 1 : -1;
-      }
-    } else {
-      if (Math.abs(dy) > minSwipeDistance) {
+      } else {
         targetRow += dy > 0 ? 1 : -1;
       }
+
+      if (
+        targetRow >= 0 && targetRow < this.rows &&
+        targetCol >= 0 && targetCol < this.cols
+      ) {
+        this.tileSwapped.emit({
+          from: { row: this.dragStartPos.row, col: this.dragStartPos.col },
+          to: { row: targetRow, col: targetCol },
+        });
+        this.dragStartPos = null;
+        return;
+      }
     }
 
-    if (
-      (targetRow !== this.touchStartPos.row || targetCol !== this.touchStartPos.col) &&
-      targetRow >= 0 && targetRow < this.rows &&
-      targetCol >= 0 && targetCol < this.cols
-    ) {
-      this.tileSwapped.emit({
-        from: { row: this.touchStartPos.row, col: this.touchStartPos.col },
-        to: { row: targetRow, col: targetCol },
-      });
-    }
+    this.dragStartPos = null;
+  };
 
-    this.touchStartPos = null;
+  private handleTouchMove = (e: TouchEvent) => {
+    // Prevent default scrolling when dragging candies on mobile touch screen
+    if (this.dragStartPos) {
+      e.preventDefault();
+    }
   };
 
   render() {
@@ -121,8 +125,9 @@ export class GameBoard {
               <div
                 key={tile.id || `${r}-${c}`}
                 class="tile-wrapper"
-                onTouchStart={(e) => this.handleTouchStart(e, r, c)}
-                onTouchEnd={this.handleTouchEnd}
+                onPointerDown={(e) => this.handlePointerDown(e, r, c)}
+                onPointerUp={(e) => this.handlePointerUp(e)}
+                onTouchMove={this.handleTouchMove}
               >
                 <game-tile
                   type={tile.type}

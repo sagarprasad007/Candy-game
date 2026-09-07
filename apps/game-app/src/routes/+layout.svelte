@@ -49,6 +49,34 @@
   <main class="content-area">
     {@render children()}
   </main>
+
+  <!-- Mobile Bottom Navigation Bar -->
+  <nav class="mobile-bottom-nav">
+    <a href="/" class="mobile-nav-item">
+      <span class="icon">🏠</span>
+      <span class="label">Home</span>
+    </a>
+    <a href="/levels" class="mobile-nav-item">
+      <span class="icon">🗺️</span>
+      <span class="label">Levels</span>
+    </a>
+    <a href="/wheel" class="mobile-nav-item">
+      <span class="icon">🎡</span>
+      <span class="label">Wheel</span>
+    </a>
+    <a href="/leaderboard" class="mobile-nav-item">
+      <span class="icon">🏆</span>
+      <span class="label">Rankings</span>
+    </a>
+    <a href="/achievements" class="mobile-nav-item">
+      <span class="icon">✨</span>
+      <span class="label">Trophies</span>
+    </a>
+    <a href="/settings" class="mobile-nav-item">
+      <span class="icon">⚙️</span>
+      <span class="label">Settings</span>
+    </a>
+  </nav>
 </div>
 
 <style>
@@ -76,6 +104,13 @@
     box-shadow: 0 10px 40px rgba(225, 29, 72, 0.15);
     border-left: 2px solid #f472b6;
     border-right: 2px solid #f472b6;
+    padding-bottom: 70px; /* Space for mobile bottom bar */
+  }
+
+  @media (min-width: 640px) {
+    .candy-wrapper {
+      padding-bottom: 0;
+    }
   }
 
   .top-nav {
@@ -112,6 +147,12 @@
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
+  }
+
+  @media (max-width: 639px) {
+    .nav-links {
+      display: none; /* Hide top desktop links on mobile to clean up space */
+    }
   }
 
   .nav-links a {
@@ -164,8 +205,54 @@
 
   .content-area {
     flex: 1;
-    padding: 24px;
+    padding: 16px;
     display: flex;
     flex-direction: column;
+  }
+
+  /* Mobile Native Bottom Navigation Bar */
+  .mobile-bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    background: #ffffff;
+    border-top: 2px solid #f472b6;
+    box-shadow: 0 -4px 20px rgba(236, 72, 153, 0.2);
+    z-index: 999;
+    justify-content: space-around;
+    align-items: center;
+  }
+
+  @media (min-width: 640px) {
+    .mobile-bottom-nav {
+      display: none;
+    }
+  }
+
+  .mobile-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    color: #881337;
+    font-size: 0.7rem;
+    font-weight: 700;
+    gap: 2px;
+    width: 100%;
+    height: 100%;
+    transition: background 0.15s ease;
+  }
+
+  .mobile-nav-item:active {
+    background: #ffe4e6;
+    color: #ec4899;
+  }
+
+  .mobile-nav-item .icon {
+    font-size: 1.1rem;
   }
 </style>
