@@ -225,13 +225,13 @@
       </div>
     </div>
 
-    {#if gameState.bannerMessage}
-      <div class="candy-banner">🍬 {gameState.bannerMessage} 🍭</div>
-    {/if}
-
-    {#if isHammerMode}
-      <div class="booster-banner">🔨 Quantum Hammer Active — Tap any tile to smash it!</div>
-    {/if}
+    <div class="banner-container">
+      {#if gameState.bannerMessage}
+        <div class="candy-banner">🍬 {gameState.bannerMessage} 🍭</div>
+      {:else if isHammerMode}
+        <div class="booster-banner">🔨 Quantum Hammer Active — Tap any tile to smash it!</div>
+      {/if}
+    </div>
 
     <div class="sr-only" aria-live="polite">
       Game level {levelId}. Score: {gameState.score}. Moves remaining: {gameState.remainingMoves}. Swipe a tile toward an adjacent cell to swap.
@@ -356,6 +356,15 @@
   @keyframes feverPulse {
     from { filter: brightness(1); }
     to { filter: brightness(1.3); }
+  }
+
+  .banner-container {
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    box-sizing: border-box;
   }
 
   .candy-banner {
