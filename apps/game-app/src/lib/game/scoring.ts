@@ -7,7 +7,7 @@ export interface ScoreBreakdown {
 }
 
 export class ScoringSystem {
-  calculateScore(matchedTiles: TileData[], comboCount: number): ScoreBreakdown {
+  calculateScore(matchedTiles: TileData[], comboCount: number, isFeverMode = false): ScoreBreakdown {
     const count = matchedTiles.length;
     let basePoints = 0;
 
@@ -25,7 +25,11 @@ export class ScoringSystem {
     });
 
     const comboMultiplier = Math.max(1, comboCount);
-    const totalPoints = (basePoints + specialBonus) * comboMultiplier;
+    let totalPoints = (basePoints + specialBonus) * comboMultiplier;
+
+    if (isFeverMode) {
+      totalPoints *= 2;
+    }
 
     let bonusText: string | undefined = undefined;
     if (comboMultiplier === 2) bonusText = 'NICE! Combo x2';

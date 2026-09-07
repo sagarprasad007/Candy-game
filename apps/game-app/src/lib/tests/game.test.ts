@@ -70,4 +70,20 @@ describe('Match-3 Game Logic Tests', () => {
     engine.checkGameStatus();
     expect(engine.state.status).toBe('lost');
   });
+
+  it('doubles total points when isFeverMode is true in calculateScore', () => {
+    const scoring = new ScoringSystem();
+    const tiles = [
+      { id: '1', type: 'ruby', special: 'none', obstacle: 'none', row: 0, col: 0 },
+      { id: '2', type: 'ruby', special: 'none', obstacle: 'none', row: 0, col: 1 },
+      { id: '3', type: 'ruby', special: 'none', obstacle: 'none', row: 0, col: 2 },
+    ] as any;
+
+    const normalScore = scoring.calculateScore(tiles, 1, false);
+    const feverScore = scoring.calculateScore(tiles, 1, true);
+
+    expect(normalScore.points).toBe(30);
+    expect(feverScore.points).toBe(60);
+  });
 });
+

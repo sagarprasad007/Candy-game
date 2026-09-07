@@ -6,18 +6,34 @@
   const levelManager = new LevelManager();
   const allLevels = levelManager.getAllLevels();
 
+  let activeModalMsg = $state<string | null>(null);
+
   function handleSelectLevel(levelId: number) {
     if (!playerStore.progress.unlockedLevels.includes(levelId)) {
-      alert(`Level ${levelId} is locked! Complete Level ${levelId - 1} first.`);
+      activeModalMsg = `🔒 Level ${levelId} is Locked! Complete Level ${levelId - 1} with at least 1 star to unlock.`;
       return;
     }
     if (playerStore.progress.lives <= 0) {
-      alert('Out of lives! Tap Restore to refill your energy.');
+      activeModalMsg = '💔 Out of Lives! Spin the Daily Wheel or wait 5 mins for lives to regenerate.';
       return;
     }
     goto(`/game/${levelId}`);
   }
+
+  function closeModal() {
+    activeModalMsg = null;
+  }
 </script>
+
+{#if activeModalMsg}
+  <div class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-icon">🍬</div>
+      <p>{activeModalMsg}</p>
+      <button class="close-btn" onclick={closeModal}>Got It! 👍</button>
+    </div>
+  </div>
+{/if}
 
 <div class="levels-screen">
   <div class="header">
@@ -45,7 +61,10 @@
 
         <div class="node-body">
           {#if isLocked}
-            <span class="lock">🔒</span>
+            <div class="locked-info">
+              <span class="lock">🔒</span>
+              <span class="req-text">Requires Level {lvl.id - 1}</span>
+            </div>
           {:else}
             <div class="stars-row">
               <span class="star {stars >= 1 ? 'earned' : ''}">★</span>
@@ -172,9 +191,75 @@
     font-size: 1.8rem;
   }
 
+  .locked-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .req-text {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #64748b;
+  }
+
   .node-footer {
     font-size: 0.8rem;
     font-weight: 700;
     color: #9f1239;
+  }
+
+  .modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    padding: 20px;
+  }
+
+  .modal-card {
+    background: #ffffff;
+    border: 4px solid #f472b6;
+    border-radius: 24px;
+    padding: 28px;
+    max-width: 360px;
+    width: 100%;
+    box-shadow: 0 15px 35px rgba(244, 114, 182, 0.3);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .modal-icon {
+    font-size: 3rem;
+  }
+
+  .modal-card p {
+    margin: 0;
+    font-weight: 700;
+    color: #881337;
+    font-size: 1rem;
+    line-height: 1.4;
+  }
+
+  .close-btn {
+    background: linear-gradient(90deg, #f43f5e, #ec4899);
+    color: #ffffff;
+    border: none;
+    padding: 10px 24px;
+    border-radius: 16px;
+    font-weight: 900;
+    font-size: 0.95rem;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(244, 63, 94, 0.3);
   }
 </style>

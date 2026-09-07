@@ -1,21 +1,42 @@
 <script lang="ts">
   import { soundFx } from '$lib/audio/sound';
+  import { playerStore } from '$lib/stores/playerStore';
 
   let isSpinning = $state(false);
   let rotationDeg = $state(0);
   let rewardMessage = $state('');
+  let cooldownMsg = $state('');
 
   const rewards = [
-    { label: '💖 +1 Life', type: 'life', icon: '❤️' },
-    { label: '🍬 Sweet Bonus', type: 'points', val: 500, icon: '🍬' },
-    { label: '🍭 Sugar Blast', type: 'points', val: 1000, icon: '🍭' },
-    { label: '🍩 Doughnut Prize', type: 'points', val: 1500, icon: '🍩' },
-    { label: '⭐ Jackpot!', type: 'points', val: 2500, icon: '👑' },
-    { label: '💖 +2 Lives', type: 'life', icon: '💕' },
+    { label: '💖 +1 Life', type: 'life', count: 1, icon: '❤️' },
+    { label: '🍬 Sweet Bonus (+500)', type: 'points', val: 500, icon: '🍬' },
+    { label: '🍭 Sugar Blast (+1000)', type: 'points', val: 1000, icon: '🍭' },
+    { label: '🍩 Doughnut Prize (+1500)', type: 'points', val: 1500, icon: '🍩' },
+    { label: '⭐ Jackpot! (+2500)', type: 'points', val: 2500, icon: '👑' },
+    { label: '💖 +2 Lives', type: 'life', count: 2, icon: '💕' },
   ];
+
+  function checkCooldown() {
+    if (!playerStore.canSpinWheel()) {
+      const elapsed = Date.now() - (playerStore.progress.lastWheelSpinTimestamp || 0);
+      const remainingMs = 24 * 60 * 60 * 1000 - elapsed;
+      const hours = Math.floor(remainingMs / (1000 * 60 * 60));
+      const mins = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+      cooldownMsg = `⏱️ Wheel on 24h cooldown. Next spin in ${hours}h ${mins}m`;
+      return false;
+    }
+    cooldownMsg = '';
+    return true;
+  }
+
+  $effect(() => {
+    checkCooldown();
+  });
 
   function handleSpin() {
     if (isSpinning) return;
+    if (!checkCooldown()) return;
+
     isSpinning = true;
     rewardMessage = '';
 
@@ -30,8 +51,18 @@
     setTimeout(() => {
       isSpinning = false;
       const wonPrize = rewards[prizeIndex];
+
+      // Grant actual rewards in player store!
+      playerStore.recordWheelSpin();
+      if (wonPrize.type === 'life') {
+        playerStore.restoreLife(wonPrize.count || 1);
+      } else if (wonPrize.type === 'points') {
+        playerStore.addPoints(wonPrize.val);
+      }
+
       rewardMessage = `🎉 You won: ${wonPrize.label}!`;
       soundFx.playWinSound();
+      checkCooldown();
     }, 3500);
   }
 </script>
@@ -56,9 +87,17 @@
       {/each}
     </div>
 
-    <button class="spin-btn {isSpinning ? 'spinning' : ''}" onclick={handleSpin} disabled={isSpinning}>
-      {isSpinning ? 'Spinning...' : 'SPIN THE WHEEL! 🎯'}
+    <button
+      class="spin-btn {isSpinning || cooldownMsg ? 'disabled' : ''}"
+      onclick={handleSpin}
+      disabled={isSpinning || !!cooldownMsg}
+    >
+      {isSpinning ? 'Spinning...' : cooldownMsg ? 'COME BACK TOMORROW ⏱️' : 'SPIN THE WHEEL! 🎯'}
     </button>
+
+    {#if cooldownMsg}
+      <div class="cooldown-banner">{cooldownMsg}</div>
+    {/if}
 
     {#if rewardMessage}
       <div class="reward-banner">{rewardMessage}</div>

@@ -4,13 +4,16 @@
   import { goto } from '$app/navigation';
 
   const levelManager = new LevelManager();
+  const maxLevels = levelManager.getAllLevels().length;
   const currentLevelId = playerStore.progress.currentLevel;
+
+  let showLivesModal = $state(false);
 
   function handleStartPlay() {
     if (playerStore.progress.lives > 0) {
       goto(`/game/${currentLevelId}`);
     } else {
-      alert('Out of lives! Tap Restore to refill your energy.');
+      showLivesModal = true;
     }
   }
 
@@ -19,11 +22,25 @@
   }
 </script>
 
+{#if showLivesModal}
+  <div class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-icon">💔</div>
+      <h3>Out of Lives!</h3>
+      <p>Tap Restore to refill your energy or spin the Lucky Candy Wheel!</p>
+      <div class="modal-actions">
+        <button class="btn refill" onclick={() => { playerStore.restoreLife(); showLivesModal = false; }}>+ Quick Restore</button>
+        <button class="btn close" onclick={() => showLivesModal = false}>Close</button>
+      </div>
+    </div>
+  </div>
+{/if}
+
 <div class="home-container">
   <div class="candy-hero">
     <div class="hero-badge">🍬 SWEET & DELICIOUS</div>
     <h1 class="hero-title">CANDY KINGDOM</h1>
-    <p class="hero-subtitle">Match colorful candies, make sweet combos, pop chocolate blocks and play through 6 fun levels!</p>
+    <p class="hero-subtitle">Match colorful candies, make sweet combos, pop chocolate blocks and play through {maxLevels} fun levels!</p>
 
     <div class="stats-row">
       <div class="stat-box">
@@ -32,7 +49,7 @@
       </div>
       <div class="stat-box">
         <span class="stat-label">COMPLETED</span>
-        <span class="stat-val">{playerStore.progress.completedLevels.length} / 6</span>
+        <span class="stat-val">{playerStore.progress.completedLevels.length} / {maxLevels}</span>
       </div>
       <div class="stat-box">
         <span class="stat-label">TROPHIES</span>
@@ -257,5 +274,80 @@
     font-size: 0.75rem;
     color: #881337;
     line-height: 1.3;
+  }
+
+  .modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    padding: 20px;
+  }
+
+  .modal-card {
+    background: #ffffff;
+    border: 3px solid #f472b6;
+    border-radius: 24px;
+    padding: 24px;
+    max-width: 360px;
+    width: 100%;
+    box-shadow: 0 15px 35px rgba(244, 114, 182, 0.3);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .modal-icon {
+    font-size: 3rem;
+  }
+
+  .modal-card h3 {
+    margin: 0;
+    color: #e11d48;
+    font-size: 1.3rem;
+    font-weight: 900;
+  }
+
+  .modal-card p {
+    margin: 0;
+    color: #881337;
+    font-size: 0.95rem;
+    font-weight: 600;
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    margin-top: 8px;
+    width: 100%;
+  }
+
+  .btn {
+    padding: 10px 16px;
+    border-radius: 16px;
+    border: none;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .btn.refill {
+    background: #10b981;
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+  }
+
+  .btn.close {
+    background: #e2e8f0;
+    color: #475569;
   }
 </style>

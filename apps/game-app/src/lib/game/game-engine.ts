@@ -1,4 +1,4 @@
-import { GameBoardLogic, cloneGrid, type Grid, type TileData } from './board';
+import { GameBoardLogic, cloneGrid, hasValidMoves, type Grid, type TileData } from './board';
 import { MatchDetector } from './match-detector';
 import { ScoringSystem } from './scoring';
 import { LevelManager, type LevelConfig } from './level-manager';
@@ -181,10 +181,11 @@ export class GameEngine {
       });
       this.state.activeEffects = effects;
 
-      // Calculate score & combo
+      // Calculate score & combo with fever mode multiplier
       const scoreBreakdown = this.scoringSystem.calculateScore(
         matchResult.matchedTiles,
-        currentCombo
+        currentCombo,
+        this.state.isFeverMode
       );
       this.state.score += scoreBreakdown.points;
       if (scoreBreakdown.bonusText) {
@@ -210,13 +211,14 @@ export class GameEngine {
         }
       });
 
-      // Phase 1: Highlight matched tiles with pop animation
+      // Phase 1: Highlight matched tiles with pop animation (Combo escalation delay)
+      const popDelay = Math.max(150, 220 - (currentCombo - 1) * 20);
       matchResult.matchedTiles.forEach((t) => {
         this.boardLogic.grid[t.row][t.col].matched = true;
       });
       this.state.grid = cloneGrid(this.boardLogic.grid);
       this.notifyStateChange();
-      await new Promise((res) => setTimeout(res, 220));
+      await new Promise((res) => setTimeout(res, popDelay));
 
       this.state.activeEffects = [];
 
@@ -250,8 +252,18 @@ export class GameEngine {
       currentCombo++;
     }
 
-    // Check Win/Loss conditions
+    // Deadlock Check: if board has no valid moves remaining, auto-shuffle
     this.checkGameStatus();
+    if (this.state.status === 'playing') {
+      if (!hasValidMoves(this.boardLogic.grid, this.boardLogic.rows, this.boardLogic.cols)) {
+        this.state.bannerMessage = 'Reshuffling board...';
+        this.notifyStateChange();
+        this.boardLogic.shuffle();
+        this.state.grid = cloneGrid(this.boardLogic.grid);
+        this.notifyStateChange();
+      }
+    }
+
     this.state.phase = this.state.status === 'playing' ? 'idle' : (this.state.status as GamePhase);
     this.state.isProcessing = false;
     this.notifyStateChange();

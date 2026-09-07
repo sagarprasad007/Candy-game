@@ -1,44 +1,41 @@
 <script lang="ts">
   import { playerStore } from '$lib/stores/playerStore';
 
-  const leaderboardData = [
-    { rank: 1, name: 'Shital Baby 💖', score: 28450, badge: '👑' },
-    { rank: 2, name: 'Sugar Master 🍬', score: 24100, badge: '🥈' },
-    { rank: 3, name: 'Candy Queen 🍭', score: 21850, badge: '🥉' },
-    { rank: 4, name: 'Sweet Champ 🍩', score: 19200, badge: '✨' },
-    { rank: 5, name: 'Choco Knight 🍫', score: 16500, badge: '⭐' },
-  ];
+  let playerTotalScore = $derived(
+    Object.values(playerStore.progress.bestScores || {}).reduce((a, b) => a + b, 0) || playerStore.progress.totalPoints || 0
+  );
+
+  const leaderboardData = $derived([
+    { rank: 1, name: 'Shital Baby 💖 (Kingdom Champion)', score: 28450, badge: '👑' },
+    { rank: 2, name: 'YOU (Personal Best)', score: Math.max(playerTotalScore, 12500), badge: '⭐', isUser: true },
+    { rank: 3, name: 'Sugar Master 🍬', score: 24100, badge: '🥈' },
+    { rank: 4, name: 'Candy Queen 🍭', score: 21850, badge: '🥉' },
+    { rank: 5, name: 'Sweet Champ 🍩', score: 19200, badge: '✨' },
+    { rank: 6, name: 'Choco Knight 🍫', score: 16500, badge: '🛡️' },
+  ].sort((a, b) => b.score - a.score).map((item, idx) => ({ ...item, rank: idx + 1 })));
 </script>
 
 <div class="leaderboard-screen">
   <div class="header">
-    <h1>👑 CANDY LEADERBOARD</h1>
-    <p>Top candy conquerors of the Kingdom!</p>
+    <h1>👑 CANDY KINGDOM HALL OF FAME</h1>
+    <p>Global Rankings & Personal Best Track (Real-time Updated!)</p>
+  </div>
+
+  <div class="user-stats-card">
+    <div class="stat-item">
+      <span class="lbl">YOUR TOTAL BEST SCORE</span>
+      <span class="val">⭐ {playerTotalScore.toLocaleString()} pts</span>
+    </div>
+    <div class="stat-item">
+      <span class="lbl">LEVELS COMPLETED</span>
+      <span class="val">🏁 {playerStore.progress.completedLevels.length}</span>
+    </div>
   </div>
 
   <div class="leaderboard-card">
-    <div class="top-three-showcase">
-      <div class="podium second">
-        <div class="avatar">🥈</div>
-        <div class="name">Sugar Master</div>
-        <div class="score">24,100</div>
-      </div>
-      <div class="podium first">
-        <div class="crown-pop">👑</div>
-        <div class="avatar queen">💖</div>
-        <div class="name queen-name">Shital Baby</div>
-        <div class="score queen-score">28,450</div>
-      </div>
-      <div class="podium third">
-        <div class="avatar">🥉</div>
-        <div class="name">Candy Queen</div>
-        <div class="score">21,850</div>
-      </div>
-    </div>
-
     <div class="ranking-list">
       {#each leaderboardData as item}
-        <div class="rank-row {item.rank === 1 ? 'rank-one' : ''}">
+        <div class="rank-row {item.rank === 1 ? 'rank-one' : ''} {item.isUser ? 'user-rank' : ''}">
           <span class="rank-num">#{item.rank}</span>
           <span class="rank-badge">{item.badge}</span>
           <span class="rank-name">{item.name}</span>
@@ -147,46 +144,45 @@
     color: #be123c;
   }
 
-  .ranking-list {
+  .user-stats-card {
+    display: flex;
+    justify-content: space-around;
+    background: #ffffff;
+    border: 3px solid #f472b6;
+    border-radius: 20px;
+    padding: 16px;
+    box-shadow: 0 6px 16px rgba(244, 114, 182, 0.2);
+  }
+
+  .stat-item {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-  }
-
-  .rank-row {
-    display: flex;
     align-items: center;
-    background: #fff5f8;
-    border: 2px solid #fbcfe8;
-    border-radius: 16px;
-    padding: 12px 16px;
-    gap: 12px;
+    gap: 4px;
   }
 
-  .rank-row.rank-one {
-    background: linear-gradient(90deg, #fff1f2, #fce7f3);
-    border-color: #ec4899;
-    box-shadow: 0 4px 15px rgba(236, 72, 153, 0.2);
-  }
-
-  .rank-num {
-    font-weight: 900;
-    color: #be123c;
-    width: 30px;
-  }
-
-  .rank-badge {
-    font-size: 1.3rem;
-  }
-
-  .rank-name {
-    flex: 1;
+  .stat-item .lbl {
+    font-size: 0.75rem;
     font-weight: 800;
-    color: #881337;
+    color: #9f1239;
   }
 
-  .rank-score {
+  .stat-item .val {
+    font-size: 1.2rem;
     font-weight: 900;
     color: #e11d48;
+  }
+
+  .rank-row.user-rank {
+    background: linear-gradient(90deg, #ec4899, #f43f5e);
+    color: #ffffff;
+    border-color: #be123c;
+    box-shadow: 0 6px 18px rgba(244, 63, 94, 0.35);
+  }
+
+  .rank-row.user-rank .rank-num,
+  .rank-row.user-rank .rank-name,
+  .rank-row.user-rank .rank-score {
+    color: #ffffff;
   }
 </style>

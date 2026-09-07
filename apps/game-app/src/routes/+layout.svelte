@@ -1,11 +1,20 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { playerStore } from '$lib/stores/playerStore';
+  import { soundFx } from '$lib/audio/sound';
 
   let { children } = $props();
+  let isLoading = $state(true);
 
   onMount(async () => {
     if (typeof window !== 'undefined') {
+      // Sync persistent audio settings before gameplay
+      soundFx.enabled = playerStore.settings.soundEnabled;
+      soundFx.musicEnabled = playerStore.settings.musicEnabled;
+      if (soundFx.musicEnabled) {
+        soundFx.startBgm();
+      }
+
       try {
         // @ts-ignore
         const { defineCustomElement: defineGameBoard } = await import('@cosmic-gems/game-ui/dist/components/game-board.js');
@@ -28,6 +37,8 @@
         defineGameModal();
       } catch (err) {
         console.warn('Stencil custom elements registration fallback:', err);
+      } finally {
+        isLoading = false;
       }
     }
   });
@@ -41,31 +52,42 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet">
 </svelte:head>
 
-<div class="candy-wrapper">
-  <header class="top-nav">
-    <a href="/" class="brand">
-      <span class="logo-candy">🍬</span>
-      <span class="brand-name">CANDY KINGDOM</span>
-    </a>
-
-    <nav class="nav-links">
-      <a href="/levels">Levels</a>
-      <a href="/wheel">🎡 Wheel</a>
-      <a href="/leaderboard">Leaderboard</a>
-      <a href="/achievements">Trophies</a>
-      <a href="/settings">Settings</a>
-    </nav>
-
-    <div class="user-pill">
-      <span class="shital-greeting">Hi Shital Baby 💕</span>
-      <span class="lives-count">❤️ {playerStore.progress.lives}</span>
+{#if isLoading}
+  <div class="loading-splash">
+    <div class="splash-card">
+      <span class="splash-candy">🍬</span>
+      <h2>CANDY KINGDOM</h2>
+      <p>Preparing sweet adventures...</p>
+      <div class="spinner"></div>
     </div>
-  </header>
+  </div>
+{:else}
+  <div class="candy-wrapper">
+    <header class="top-nav">
+      <a href="/" class="brand">
+        <span class="logo-candy">🍬</span>
+        <span class="brand-name">CANDY KINGDOM</span>
+      </a>
 
-  <main class="content-area">
-    {@render children()}
-  </main>
-</div>
+      <nav class="nav-links">
+        <a href="/levels">Levels</a>
+        <a href="/wheel">🎡 Wheel</a>
+        <a href="/leaderboard">Leaderboard</a>
+        <a href="/achievements">Trophies</a>
+        <a href="/settings">Settings</a>
+      </nav>
+
+      <div class="user-pill">
+        <span class="shital-greeting">Hi Shital Baby 💕</span>
+        <span class="lives-count">❤️ {playerStore.progress.lives}</span>
+      </div>
+    </header>
+
+    <main class="content-area">
+      {@render children()}
+    </main>
+  </div>
+{/if}
 
 <!-- Keep this OUTSIDE candy-wrapper to prevent backdrop-filter containing block issues -->
 <nav class="mobile-bottom-nav">
@@ -267,5 +289,61 @@
 
   .mobile-nav-item .icon {
     font-size: 1.1rem;
+  }
+
+  .loading-splash {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
+  }
+
+  .splash-card {
+    background: #ffffff;
+    padding: 40px;
+    border-radius: 24px;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(236, 72, 153, 0.3);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .splash-candy {
+    font-size: 4rem;
+    animation: pulse 1s infinite alternate;
+  }
+
+  .splash-card h2 {
+    margin: 0;
+    color: #e11d48;
+    font-weight: 900;
+  }
+
+  .splash-card p {
+    margin: 0;
+    color: #9f1239;
+    font-weight: 600;
+  }
+
+  .spinner {
+    width: 32px;
+    height: 32px;
+    border: 4px solid #fbcfe8;
+    border-top: 4px solid #e11d48;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  @keyframes pulse {
+    0% { transform: scale(1); }
+    100% { transform: scale(1.15); }
   }
 </style>

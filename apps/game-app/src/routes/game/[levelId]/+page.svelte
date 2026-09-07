@@ -7,6 +7,7 @@
   import { goto } from '$app/navigation';
   import { generateStory, type GeneratedStory } from '$lib/game/story-generator';
   import LevelStoryModal from '$lib/components/LevelStoryModal.svelte';
+  import PreLevelModal from '$lib/components/PreLevelModal.svelte';
 
   let levelId = $derived(parseInt(page.params.levelId || '1'));
   let engine: GameEngine | null = $state(null);
@@ -15,6 +16,7 @@
   let selectedCol = $state(-1);
   let isHammerMode = $state(false);
   let activeStory: GeneratedStory | null = $state(null);
+  let showPreLevelModal = $state(true);
   let boardEl: any = $state(null);
 
   function syncBoardProps() {
@@ -73,6 +75,10 @@
     }, 50);
   });
 
+  function handleStartLevel(preBoosters: string[]) {
+    showPreLevelModal = false;
+  }
+
   // Direct property synchronization to Stencil Web Component
   $effect(() => {
     // Read reactive variables to subscribe
@@ -119,12 +125,23 @@
     if (selectedRow === -1 && selectedCol === -1) {
       selectedRow = r;
       selectedCol = c;
+      soundFx.playMatchSound(1);
     } else if (selectedRow === r && selectedCol === c) {
       selectedRow = -1;
       selectedCol = -1;
     } else {
       const fromR = selectedRow;
       const fromC = selectedCol;
+      const isAdjacent = Math.abs(fromR - r) + Math.abs(fromC - c) === 1;
+
+      // Adjacency Validation on tap-select: if non-adjacent, reselect newly tapped tile
+      if (!isAdjacent) {
+        selectedRow = r;
+        selectedCol = c;
+        soundFx.playMatchSound(1);
+        return;
+      }
+
       selectedRow = -1;
       selectedCol = -1;
 
@@ -157,12 +174,16 @@
   function handleGameOver(status: 'won' | 'lost') {
     if (status === 'won') {
       soundFx.playWinSound();
-      const stars = gameState!.score > gameState!.levelConfig.objective.targetScore * 1.5 ? 3 : 2;
-      playerStore.recordLevelCompletion(levelId, gameState!.score, stars);
+      const target = gameState!.levelConfig.objective.targetScore;
+      const score = gameState!.score;
+
+      // Real 3-tier Star rating floor
+      const stars = score >= target * 1.5 ? 3 : score >= target * 1.15 ? 2 : 1;
+      playerStore.recordLevelCompletion(levelId, score, stars);
 
       activeStory = generateStory({
         levelId,
-        score: gameState!.score,
+        score,
         stars,
         remainingMoves: gameState!.remainingMoves,
         comboCount: gameState!.comboCount,
@@ -183,6 +204,10 @@
   }
 </script>
 
+{#if showPreLevelModal && gameState}
+  <PreLevelModal levelConfig={gameState.levelConfig} onStart={handleStartLevel} />
+{/if}
+
 {#if activeStory}
   <LevelStoryModal story={activeStory} onContinue={handleStoryContinue} />
 {/if}
@@ -200,7 +225,7 @@
         <span class="info-val">{gameState.levelConfig.objective.targetScore.toLocaleString()}</span>
       </div>
 
-      <div class="info-box moves-box">
+      <div class="info-box moves-box {gameState.remainingMoves <= 3 ? 'moves-low-glow' : ''}">
         <span class="info-label">MOVES</span>
         <span class="info-val moves-num">{gameState.remainingMoves}</span>
       </div>
@@ -256,7 +281,7 @@
         aria-label="Quantum Hammer Booster"
       >
         <span class="booster-icon">🔨</span>
-        <span class="booster-label">Hammer</span>
+        <span class="booster-label">Hammer ({playerStore.progress.boosters?.hammer || 0})</span>
       </button>
 
       <button
@@ -267,7 +292,7 @@
         aria-label="Stellar Shuffle Booster"
       >
         <span class="booster-icon">🔀</span>
-        <span class="booster-label">Shuffle</span>
+        <span class="booster-label">Shuffle ({playerStore.progress.boosters?.shuffle || 0})</span>
       </button>
     </div>
   </div>
@@ -318,6 +343,22 @@
   .moves-num {
     color: #e11d48;
     font-size: 1.6rem;
+  }
+
+  .moves-low-glow .moves-num {
+    animation: tensionPulse 0.6s infinite alternate ease-in-out;
+  }
+
+  @keyframes tensionPulse {
+    from {
+      transform: scale(1);
+      text-shadow: 0 0 4px rgba(225, 29, 72, 0.4);
+    }
+    to {
+      transform: scale(1.25);
+      color: #ff0033;
+      text-shadow: 0 0 16px rgba(255, 0, 51, 0.9);
+    }
   }
 
   .fever-meter-wrapper {

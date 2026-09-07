@@ -67,6 +67,8 @@ export interface VisualTileState {
   delay: number;
   isNew?: boolean;
   matched?: boolean;
+  scaleX?: number;
+  scaleY?: number;
 }
 
 export interface CandyTheme {
@@ -116,6 +118,7 @@ export class CanvasGameRenderer {
   public disabled: boolean = false;
   public showFps: boolean = false;
   public isFever = false;
+  public isDirty: boolean = true;
 
   private dragState: DragState | null = null;
   private particles: Particle[] = [];
@@ -128,6 +131,11 @@ export class CanvasGameRenderer {
   private frameTimeMs: number = 16.6;
   private prefersReducedMotion: boolean = false;
 
+  // Screen shake & hit stop state
+  private shakeEndTime: number = 0;
+  private shakeIntensity: number = 0;
+  private hitStopUntil: number = 0;
+
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     const ctx = canvas.getContext('2d');
@@ -139,6 +147,35 @@ export class CanvasGameRenderer {
     }
 
     this.startLoop();
+  }
+
+  public triggerHaptic(type: 'select' | 'swap' | 'special' | 'win' | 'loss') {
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try {
+        if (type === 'select') navigator.vibrate(12);
+        else if (type === 'swap') navigator.vibrate(25);
+        else if (type === 'special') navigator.vibrate([40, 30, 60]);
+        else if (type === 'win') navigator.vibrate([50, 50, 100, 50, 150]);
+        else if (type === 'loss') navigator.vibrate([100, 50, 100]);
+      } catch (_) {}
+    }
+  }
+
+  public triggerScreenShake(intensity = 3, durationMs = 120) {
+    if (this.prefersReducedMotion) return;
+    this.shakeIntensity = intensity;
+    this.shakeEndTime = performance.now() + durationMs;
+    this.isDirty = true;
+  }
+
+  public triggerHitStop(durationMs = 70) {
+    if (this.prefersReducedMotion) return;
+    this.hitStopUntil = performance.now() + durationMs;
+    this.isDirty = true;
+  }
+
+  public markDirty() {
+    this.isDirty = true;
   }
 
   public resize(cssWidth: number, cssHeight: number): void {
@@ -160,6 +197,7 @@ export class CanvasGameRenderer {
     }
     this.recalculateGeometry();
     this.syncVisualTiles(true);
+    this.isDirty = true;
   }
 
   public recalculateGeometry(): void {
@@ -221,6 +259,7 @@ export class CanvasGameRenderer {
   public setGrid(grid: BoardTile[][]): void {
     this.grid = grid || [];
     this.syncVisualTiles(false);
+    this.isDirty = true;
   }
 
   public getVisualTilePosition(id: string): { x: number; y: number } | null {
@@ -266,7 +305,7 @@ export class CanvasGameRenderer {
             existing.targetY = targetY;
             existing.startTime = now;
             existing.duration = 300;
-            existing.delay = c * 12; // Column stagger
+            existing.delay = c * 12;
             existing.isNew = false;
           }
         } else {
@@ -298,7 +337,7 @@ export class CanvasGameRenderer {
             }
 
             const startX = targetX;
-            const startY = this.originY + spawnRow * this.cellPitchY; // SPAWN ABOVE VISIBLE BOARD
+            const startY = this.originY + spawnRow * this.cellPitchY;
 
             this.visualTiles.set(tile.id, {
               id: tile.id,
@@ -315,7 +354,7 @@ export class CanvasGameRenderer {
               currentY: startY,
               startTime: now,
               duration: 320,
-              delay: Math.max(0, (this.rows - r)) * 15, // Stagger from top to bottom
+              delay: Math.max(0, (this.rows - r)) * 15,
               isNew: true,
               matched: tile.matched,
             });
@@ -336,6 +375,7 @@ export class CanvasGameRenderer {
     if (this.phase !== phase) {
       this.phase = phase;
       this.phaseStartTime = performance.now();
+      this.isDirty = true;
     }
   }
 
@@ -344,19 +384,28 @@ export class CanvasGameRenderer {
       this.swapAnimation = anim;
       if (anim) {
         this.swapStartTime = performance.now();
+        this.triggerHaptic('swap');
       }
+      this.isDirty = true;
     }
   }
 
   public setDragState(drag: DragState | null): void {
     this.dragState = drag;
+    this.isDirty = true;
   }
 
   public setSpecialEffects(effects: SpecialEffect[]): void {
     this.activeEffects = effects || [];
-    if (effects && effects.length > 0 && !this.prefersReducedMotion) {
-      effects.forEach((eff) => this.spawnSpecialParticles(eff));
+    if (effects && effects.length > 0) {
+      this.triggerHitStop(70);
+      this.triggerScreenShake(4, 150);
+      this.triggerHaptic('special');
+      if (!this.prefersReducedMotion) {
+        effects.forEach((eff) => this.spawnSpecialParticles(eff));
+      }
     }
+    this.isDirty = true;
   }
 
   private spawnSpecialParticles(eff: SpecialEffect): void {
@@ -406,8 +455,38 @@ export class CanvasGameRenderer {
       }
       this.lastTime = now;
 
-      this.render(now);
-      this.updateParticles();
+      // Hit stop logic
+      if (now < this.hitStopUntil) {
+        const reqFn = typeof window !== 'undefined' ? window.requestAnimationFrame.bind(window) : (cb: Function) => setTimeout(cb, 16);
+        this.animFrameId = reqFn(loop);
+        return;
+      }
+
+      // Performance dirty flag check to avoid wasting battery on idle board
+      let activeAnimation = false;
+      for (const vTile of this.visualTiles.values()) {
+        if (vTile.currentX !== vTile.targetX || vTile.currentY !== vTile.targetY || vTile.matched) {
+          activeAnimation = true;
+          break;
+        }
+      }
+
+      if (
+        this.isDirty ||
+        activeAnimation ||
+        this.dragState ||
+        this.swapAnimation ||
+        this.particles.length > 0 ||
+        this.isFever ||
+        now < this.shakeEndTime
+      ) {
+        this.render(now);
+        this.updateParticles();
+
+        if (!activeAnimation && this.particles.length === 0 && !this.dragState && !this.swapAnimation && !this.isFever) {
+          this.isDirty = false;
+        }
+      }
 
       const reqFn = typeof window !== 'undefined' ? window.requestAnimationFrame.bind(window) : (cb: Function) => setTimeout(cb, 16);
       this.animFrameId = reqFn(loop);
@@ -437,10 +516,19 @@ export class CanvasGameRenderer {
 
   private render(now: number): void {
     const ctx = this.ctx;
+    ctx.save();
     ctx.clearRect(0, 0, this.width, this.height);
 
+    // Apply Screen Shake if active
+    if (now < this.shakeEndTime && !this.prefersReducedMotion) {
+      const progress = (this.shakeEndTime - now) / 150;
+      const rx = (Math.random() - 0.5) * this.shakeIntensity * progress;
+      const ry = (Math.random() - 0.5) * this.shakeIntensity * progress;
+      ctx.translate(rx, ry);
+    }
+
     // 1. Draw Board Frame & Background Grid
-    this.drawBoardBackground();
+    this.drawBoardBackground(now);
 
     // 2. Update Visual Positions & Draw Board Tiles
     for (const vTile of this.visualTiles.values()) {
@@ -458,6 +546,7 @@ export class CanvasGameRenderer {
     if (this.showFps) {
       this.drawFpsOverlay();
     }
+    ctx.restore();
   }
 
   private updateTilePosition(vTile: VisualTileState, now: number): void {
@@ -465,39 +554,49 @@ export class CanvasGameRenderer {
     if (elapsed <= 0) {
       vTile.currentX = vTile.startX;
       vTile.currentY = vTile.startY;
+      vTile.scaleX = 1;
+      vTile.scaleY = 1;
       return;
     }
 
     if (vTile.duration <= 0) {
       vTile.currentX = vTile.targetX;
       vTile.currentY = vTile.targetY;
+      vTile.scaleX = 1;
+      vTile.scaleY = 1;
       return;
     }
 
     const progress = Math.min(1, Math.max(0, elapsed / vTile.duration));
-    // Ease out cubic for smooth gravity fall
     let ease = 1 - Math.pow(1 - progress, 3);
 
-    // Soft landing settling effect at end of fall
-    if (progress > 0.85 && progress < 1 && Math.abs(vTile.targetY - vTile.startY) > 5) {
+    // Cartoon landing bounce / squash at end of fall
+    if (progress > 0.85 && progress <= 1 && Math.abs(vTile.targetY - vTile.startY) > 5) {
       const settleProgress = (progress - 0.85) / 0.15;
-      const bounceOffset = Math.sin(settleProgress * Math.PI) * 2.5; // 2.5px soft bounce
+      const bounceOffset = Math.sin(settleProgress * Math.PI) * 2.5;
       vTile.currentX = vTile.startX + (vTile.targetX - vTile.startX) * ease;
       vTile.currentY = vTile.startY + (vTile.targetY - vTile.startY) * ease + bounceOffset;
+
+      if (!this.prefersReducedMotion) {
+        vTile.scaleY = 0.85 + 0.15 * settleProgress;
+        vTile.scaleX = 1.1 - 0.1 * settleProgress;
+      }
     } else {
       vTile.currentX = vTile.startX + (vTile.targetX - vTile.startX) * ease;
       vTile.currentY = vTile.startY + (vTile.targetY - vTile.startY) * ease;
+      vTile.scaleX = 1;
+      vTile.scaleY = 1;
     }
   }
 
-  private drawBoardBackground(): void {
+  private drawBoardBackground(now: number): void {
     const ctx = this.ctx;
     const gridW = this.cols * this.cellPitchX - this.gap;
     const gridH = this.rows * this.cellPitchY - this.gap;
 
     if (this.isFever) {
       ctx.save();
-      ctx.strokeStyle = `hsl(${(performance.now() * 0.15) % 360}, 100%, 60%)`;
+      ctx.strokeStyle = `hsl(${(now * 0.15) % 360}, 100%, 60%)`;
       ctx.lineWidth = 4;
       ctx.shadowColor = '#fbbf24';
       ctx.shadowBlur = 16;
@@ -528,7 +627,13 @@ export class CanvasGameRenderer {
 
         ctx.beginPath();
         ctx.roundRect(x, y, this.cellWidth, this.cellHeight, radius);
-        ctx.fillStyle = (r + c) % 2 === 0 ? 'rgba(255, 255, 255, 0.45)' : 'rgba(255, 241, 242, 0.35)';
+
+        if (this.isFever) {
+          const hue = (now * 0.05 + (r + c) * 20) % 360;
+          ctx.fillStyle = `hsla(${hue}, 80%, 95%, 0.65)`;
+        } else {
+          ctx.fillStyle = (r + c) % 2 === 0 ? 'rgba(255, 255, 255, 0.45)' : 'rgba(255, 241, 242, 0.35)';
+        }
         ctx.fill();
         ctx.strokeStyle = 'rgba(244, 114, 182, 0.25)';
         ctx.lineWidth = 1.5;
@@ -543,9 +648,10 @@ export class CanvasGameRenderer {
 
     let posX = vTile.currentX;
     let posY = vTile.currentY;
-    let scale = 1;
+    let scaleX = vTile.scaleX || 1;
+    let scaleY = vTile.scaleY || 1;
     let alpha = 1;
-    let zIndex = 1;
+    let showWhiteFlash = false;
 
     const r = vTile.row;
     const c = vTile.col;
@@ -557,45 +663,53 @@ export class CanvasGameRenderer {
     if (isDragged && this.dragState) {
       posX += this.dragState.dx;
       posY += this.dragState.dy;
-      scale = 1.12;
-      zIndex = 20;
+      scaleX = 1.12;
+      scaleY = 1.12;
     } else if (isTargetReaction && this.dragState) {
       posX -= this.dragState.dx * 0.35;
       posY -= this.dragState.dy * 0.35;
-      scale = 0.96;
+      scaleX = 0.96;
+      scaleY = 0.96;
     }
 
-    // Check Swap Animation State
+    // Check Swap Animation State (with 15ms anticipation squash)
     if (this.swapAnimation) {
       const { fromRow, fromCol, toRow, toCol, reversing } = this.swapAnimation;
       const elapsed = now - this.swapStartTime;
       const duration = 180;
-      let progress = Math.min(1, Math.max(0, elapsed / duration));
 
-      if (reversing) {
-        progress = 1 - progress;
-      }
+      if (elapsed < 20 && !this.prefersReducedMotion) {
+        // Anticipation squash on start of swap move
+        scaleX = 0.92;
+        scaleY = 0.92;
+      } else {
+        let progress = Math.min(1, Math.max(0, elapsed / duration));
 
-      const easedProgress = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+        if (reversing) {
+          progress = 1 - progress;
+        }
 
-      if (fromRow === r && fromCol === c) {
-        const startX = this.originX + toCol * this.cellPitchX;
-        const startY = this.originY + toRow * this.cellPitchY;
-        const endX = this.originX + fromCol * this.cellPitchX;
-        const endY = this.originY + fromRow * this.cellPitchY;
-        posX = startX + (endX - startX) * easedProgress;
-        posY = startY + (endY - startY) * easedProgress;
-        scale = 1.08;
-        zIndex = 25;
-      } else if (toRow === r && toCol === c) {
-        const startX = this.originX + fromCol * this.cellPitchX;
-        const startY = this.originY + fromRow * this.cellPitchY;
-        const endX = this.originX + toCol * this.cellPitchX;
-        const endY = this.originY + toRow * this.cellPitchY;
-        posX = startX + (endX - startX) * easedProgress;
-        posY = startY + (endY - startY) * easedProgress;
-        scale = 1.08;
-        zIndex = 25;
+        const easedProgress = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+
+        if (fromRow === r && fromCol === c) {
+          const startX = this.originX + toCol * this.cellPitchX;
+          const startY = this.originY + toRow * this.cellPitchY;
+          const endX = this.originX + fromCol * this.cellPitchX;
+          const endY = this.originY + fromRow * this.cellPitchY;
+          posX = startX + (endX - startX) * easedProgress;
+          posY = startY + (endY - startY) * easedProgress;
+          scaleX = 1.08;
+          scaleY = 1.08;
+        } else if (toRow === r && toCol === c) {
+          const startX = this.originX + fromCol * this.cellPitchX;
+          const startY = this.originY + fromRow * this.cellPitchY;
+          const endX = this.originX + toCol * this.cellPitchX;
+          const endY = this.originY + toRow * this.cellPitchY;
+          posX = startX + (endX - startX) * easedProgress;
+          posY = startY + (endY - startY) * easedProgress;
+          scaleX = 1.08;
+          scaleY = 1.08;
+        }
       }
     }
 
@@ -604,7 +718,8 @@ export class CanvasGameRenderer {
       const elapsed = now - (vTile.startTime + vTile.delay);
       if (elapsed > 0 && vTile.duration > 0) {
         const progress = Math.min(1, Math.max(0, elapsed / vTile.duration));
-        scale = 0.85 + progress * 0.15;
+        scaleX = 0.85 + progress * 0.15;
+        scaleY = 0.85 + progress * 0.15;
         alpha = Math.min(1, 0.4 + progress * 0.6);
       }
     }
@@ -612,23 +727,35 @@ export class CanvasGameRenderer {
     // Check Selection State
     const isSelected = this.selectedRow === r && this.selectedCol === c;
     if (isSelected && !isDragged) {
-      scale = 1.12 + Math.sin(now * 0.008) * 0.04;
-      zIndex = 15;
+      const pulse = Math.sin(now * 0.008) * 0.04;
+      scaleX = 1.12 + pulse;
+      scaleY = 1.12 + pulse;
     }
 
-    // Check Matched / Pop Animation State
+    // Match Pop Punch Animation: 1 -> 1.35 (60ms ease-out) -> 0 (140ms ease-in)
     if (vTile.matched) {
       const elapsed = now - this.phaseStartTime;
-      const duration = 220;
-      const progress = Math.min(1, Math.max(0, elapsed / duration));
-      scale = 1 + Math.sin(progress * Math.PI) * 0.28;
-      alpha = 1 - progress * 0.85;
+      if (elapsed <= 60) {
+        const p = elapsed / 60;
+        const s = 1 + (1 - Math.pow(1 - p, 2)) * 0.35; // punch to 1.35x
+        scaleX = s;
+        scaleY = s;
+        if (p > 0.8 && (vTile.special !== 'none' || this.phase === 'cascade')) {
+          showWhiteFlash = true;
+        }
+      } else {
+        const p = Math.min(1, (elapsed - 60) / 140);
+        const s = 1.35 * (1 - p * p);
+        scaleX = Math.max(0, s);
+        scaleY = Math.max(0, s);
+        alpha = 1 - p;
+      }
     }
 
     // Render Tile Card on Canvas
     const theme = CANDY_THEMES[vTile.type] || CANDY_THEMES.default;
-    const w = this.cellWidth * scale;
-    const h = this.cellHeight * scale;
+    const w = this.cellWidth * scaleX;
+    const h = this.cellHeight * scaleY;
     const cx = posX + this.cellWidth / 2;
     const cy = posY + this.cellHeight / 2;
 
@@ -637,7 +764,7 @@ export class CanvasGameRenderer {
     ctx.translate(cx, cy);
 
     // Rounded rectangle card path
-    const radius = 14 * scale;
+    const radius = 14 * Math.min(scaleX, scaleY);
     ctx.beginPath();
     ctx.roundRect(-w / 2, -h / 2, w, h, radius);
 
@@ -651,22 +778,26 @@ export class CanvasGameRenderer {
       ctx.shadowOffsetY = 4;
     }
 
-    // Gradient Background Fill
-    const grad = ctx.createLinearGradient(-w / 2, -h / 2, w / 2, h / 2);
-    grad.addColorStop(0, theme.bgStart);
-    grad.addColorStop(1, theme.bgEnd);
-    ctx.fillStyle = grad;
+    // Gradient Background Fill (or Peak 1-Frame White Flash)
+    if (showWhiteFlash) {
+      ctx.fillStyle = '#ffffff';
+    } else {
+      const grad = ctx.createLinearGradient(-w / 2, -h / 2, w / 2, h / 2);
+      grad.addColorStop(0, theme.bgStart);
+      grad.addColorStop(1, theme.bgEnd);
+      ctx.fillStyle = grad;
+    }
     ctx.fill();
 
     // Glossy Inner Highlight
     ctx.shadowBlur = 0;
     ctx.shadowOffsetY = 0;
-    ctx.lineWidth = 2 * scale;
+    ctx.lineWidth = 2 * Math.min(scaleX, scaleY);
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
     ctx.stroke();
 
     // Render Symbol / Emoji
-    ctx.font = `${Math.round(24 * scale)}px sans-serif`;
+    ctx.font = `${Math.round(24 * Math.min(scaleX, scaleY))}px sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(theme.symbol, 0, 2);
@@ -674,14 +805,14 @@ export class CanvasGameRenderer {
     // Render Special Badge Overlay
     if (vTile.special && vTile.special !== 'none') {
       ctx.beginPath();
-      ctx.arc(w / 2 - 8 * scale, -h / 2 + 8 * scale, 9 * scale, 0, Math.PI * 2);
+      ctx.arc(w / 2 - 8 * scaleX, -h / 2 + 8 * scaleY, 9 * Math.min(scaleX, scaleY), 0, Math.PI * 2);
       ctx.fillStyle = '#ffffff';
       ctx.fill();
       ctx.fillStyle = '#e11d48';
-      ctx.font = `bold ${Math.round(11 * scale)}px sans-serif`;
+      ctx.font = `bold ${Math.round(11 * Math.min(scaleX, scaleY))}px sans-serif`;
       const badgeIcon =
         vTile.special === 'line-h' ? '↔' : vTile.special === 'line-v' ? '↕' : vTile.special === 'bomb' ? '💣' : '🍩';
-      ctx.fillText(badgeIcon, w / 2 - 8 * scale, -h / 2 + 9 * scale);
+      ctx.fillText(badgeIcon, w / 2 - 8 * scaleX, -h / 2 + 9 * scaleY);
     }
 
     // Render Obstacle Overlay (Chocolate Blocks)
@@ -691,9 +822,9 @@ export class CanvasGameRenderer {
       ctx.fillStyle = 'rgba(120, 53, 15, 0.85)';
       ctx.fill();
       ctx.strokeStyle = '#451a03';
-      ctx.lineWidth = 2 * scale;
+      ctx.lineWidth = 2 * Math.min(scaleX, scaleY);
       ctx.stroke();
-      ctx.font = `${Math.round(20 * scale)}px sans-serif`;
+      ctx.font = `${Math.round(20 * Math.min(scaleX, scaleY))}px sans-serif`;
       ctx.fillText('🍫', 0, 2);
     }
 
@@ -753,3 +884,4 @@ export class CanvasGameRenderer {
     ctx.restore();
   }
 }
+

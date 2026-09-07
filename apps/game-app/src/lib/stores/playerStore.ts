@@ -1,4 +1,5 @@
 import { browser } from '$app/environment';
+import { LevelManager } from '../game/level-manager';
 
 export interface PlayerProgress {
   currentLevel: number;
@@ -9,7 +10,11 @@ export interface PlayerProgress {
   lives: number;
   maxLives: number;
   lastLifeRestoredTimestamp: number;
+  lastWheelSpinTimestamp?: number;
+  coins: number;
+  totalPoints: number;
   achievements: string[];
+  boosters: Record<string, number>; // boosterId -> count
 }
 
 export interface GameSettings {
@@ -27,7 +32,11 @@ const DEFAULT_PROGRESS: PlayerProgress = {
   lives: 5,
   maxLives: 5,
   lastLifeRestoredTimestamp: Date.now(),
+  lastWheelSpinTimestamp: 0,
+  coins: 100,
+  totalPoints: 0,
   achievements: [],
+  boosters: { hammer: 3, shuffle: 3, extraMoves: 1 },
 };
 
 const DEFAULT_SETTINGS: GameSettings = {
@@ -39,6 +48,7 @@ const DEFAULT_SETTINGS: GameSettings = {
 class StorageStore {
   progress: PlayerProgress;
   settings: GameSettings;
+  private levelManager = new LevelManager();
 
   constructor() {
     this.progress = this.loadProgress();
@@ -84,11 +94,46 @@ class StorageStore {
     }
   }
 
-  restoreLife(): void {
-    if (this.progress.lives < this.progress.maxLives) {
-      this.progress.lives++;
+  restoreLife(count = 1): void {
+    this.progress.lives = Math.min(this.progress.maxLives, this.progress.lives + count);
+    this.saveProgress();
+  }
+
+  addCoins(amount: number): void {
+    this.progress.coins = (this.progress.coins || 0) + amount;
+    this.saveProgress();
+  }
+
+  addPoints(amount: number): void {
+    this.progress.totalPoints = (this.progress.totalPoints || 0) + amount;
+    this.saveProgress();
+  }
+
+  addBooster(type: string, count = 1): void {
+    if (!this.progress.boosters) this.progress.boosters = { hammer: 3, shuffle: 3, extraMoves: 1 };
+    this.progress.boosters[type] = (this.progress.boosters[type] || 0) + count;
+    this.saveProgress();
+  }
+
+  useBooster(type: string): boolean {
+    if (!this.progress.boosters) this.progress.boosters = { hammer: 3, shuffle: 3, extraMoves: 1 };
+    if ((this.progress.boosters[type] || 0) > 0) {
+      this.progress.boosters[type]--;
       this.saveProgress();
+      return true;
     }
+    return false;
+  }
+
+  recordWheelSpin(): void {
+    this.progress.lastWheelSpinTimestamp = Date.now();
+    this.saveProgress();
+  }
+
+  canSpinWheel(): boolean {
+    if (!this.progress.lastWheelSpinTimestamp) return true;
+    const elapsed = Date.now() - this.progress.lastWheelSpinTimestamp;
+    return elapsed >= 24 * 60 * 60 * 1000; // 24 hours
   }
 
   consumeLife(): boolean {
@@ -105,13 +150,15 @@ class StorageStore {
       this.progress.completedLevels.push(levelId);
     }
 
+    const maxLevel = this.levelManager.getAllLevels().length;
     const nextLevel = levelId + 1;
-    if (!this.progress.unlockedLevels.includes(nextLevel) && nextLevel <= 6) {
+    if (!this.progress.unlockedLevels.includes(nextLevel) && nextLevel <= maxLevel) {
       this.progress.unlockedLevels.push(nextLevel);
     }
 
     this.progress.stars[levelId] = Math.max(this.progress.stars[levelId] || 0, stars);
     this.progress.bestScores[levelId] = Math.max(this.progress.bestScores[levelId] || 0, score);
+    this.progress.totalPoints = (this.progress.totalPoints || 0) + score;
 
     // Achievements check
     if (!this.progress.achievements.includes('first_victory')) {
@@ -136,3 +183,4 @@ class StorageStore {
 }
 
 export const playerStore = new StorageStore();
+

@@ -1,3 +1,5 @@
+import { MatchDetector } from './match-detector';
+
 export interface TileData {
   id: string;
   type: string; // ruby, sapphire, emerald, amber, amethyst
@@ -165,26 +167,68 @@ export class GameBoardLogic {
   }
 
   shuffle(): void {
-    const allTiles: TileData[] = [];
-    for (let r = 0; r < this.rows; r++) {
-      for (let c = 0; c < this.cols; c++) {
-        allTiles.push(this.grid[r][c]);
+    let attempts = 0;
+    do {
+      const allTiles: TileData[] = [];
+      for (let r = 0; r < this.rows; r++) {
+        for (let c = 0; c < this.cols; c++) {
+          allTiles.push(this.grid[r][c]);
+        }
       }
-    }
 
-    for (let i = allTiles.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [allTiles[i], allTiles[j]] = [allTiles[j], allTiles[i]];
-    }
+      for (let i = allTiles.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [allTiles[i], allTiles[j]] = [allTiles[j], allTiles[i]];
+      }
 
-    let idx = 0;
-    for (let r = 0; r < this.rows; r++) {
-      for (let c = 0; c < this.cols; c++) {
-        const t = allTiles[idx++];
-        t.row = r;
-        t.col = c;
-        this.grid[r][c] = t;
+      let idx = 0;
+      for (let r = 0; r < this.rows; r++) {
+        for (let c = 0; c < this.cols; c++) {
+          const t = allTiles[idx++];
+          t.row = r;
+          t.col = c;
+          this.grid[r][c] = t;
+        }
+      }
+      attempts++;
+    } while (!hasValidMoves(this.grid, this.rows, this.cols) && attempts < 100);
+  }
+}
+
+export function hasValidMoves(grid: Grid, rows: number, cols: number): boolean {
+  const detector = new MatchDetector();
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const t1 = grid[r]?.[c];
+      if (!t1 || !t1.type) continue;
+
+      // Test horizontal swap with right neighbor
+      if (c + 1 < cols) {
+        const t2 = grid[r]?.[c + 1];
+        if (t2 && t2.type) {
+          const testGrid = cloneGrid(grid);
+          testGrid[r][c] = { ...t2, row: r, col: c };
+          testGrid[r][c + 1] = { ...t1, row: r, col: c + 1 };
+          const res = detector.findMatches(testGrid, rows, cols, { r1: r, c1: c, r2: r, c2: c + 1 });
+          if (res.matchedTiles.length > 0) return true;
+        }
+      }
+
+      // Test vertical swap with bottom neighbor
+      if (r + 1 < rows) {
+        const t2 = grid[r + 1]?.[c];
+        if (t2 && t2.type) {
+          const testGrid = cloneGrid(grid);
+          testGrid[r][c] = { ...t2, row: r, col: c };
+          testGrid[r + 1][c] = { ...t1, row: r + 1, col: c };
+          const res = detector.findMatches(testGrid, rows, cols, { r1: r, c1: c, r2: r + 1, c2: c });
+          if (res.matchedTiles.length > 0) return true;
+        }
       }
     }
   }
+
+  return false;
 }
+
