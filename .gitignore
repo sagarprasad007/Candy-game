@@ -7,4 +7,5 @@ loader/
 .env.*
 !.env.example
 .DS_Store
+.vercel/
 *.log
