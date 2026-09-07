@@ -123,23 +123,35 @@ export class GameEngine {
         }
       });
 
-      // Clear matched tiles
+      // Phase 1: Highlight and clear matched tiles with pop animation
+      matchResult.matchedTiles.forEach((t) => {
+        this.boardLogic.grid[t.row][t.col].matched = true;
+      });
+      this.state.grid = JSON.parse(JSON.stringify(this.boardLogic.grid));
+      await new Promise((res) => setTimeout(res, 200));
+
       matchResult.matchedTiles.forEach((t) => {
         this.boardLogic.grid[t.row][t.col].type = '';
         this.boardLogic.grid[t.row][t.col].special = 'none';
+        this.boardLogic.grid[t.row][t.col].matched = false;
       });
 
       // Create special tile if 4+ match formed
       if (matchResult.createdSpecialTile) {
         const { row, col, special } = matchResult.createdSpecialTile;
-        this.boardLogic.grid[row][col].type = 'ruby'; // fallback type
+        this.boardLogic.grid[row][col].type = 'ruby';
         this.boardLogic.grid[row][col].special = special;
       }
 
-      // Apply gravity and refill
-      await new Promise((res) => setTimeout(res, 250));
-      this.boardLogic.applyGravityAndRefill();
-      this.state.grid = [...this.boardLogic.grid];
+      // Phase 2: Apply gravity & spawn falling tiles from top
+      const { fallen, newTiles } = this.boardLogic.applyGravityAndRefill();
+      this.state.grid = JSON.parse(JSON.stringify(this.boardLogic.grid));
+      await new Promise((res) => setTimeout(res, 350));
+
+      // Reset falling flags after animation completes
+      fallen.forEach(t => t.falling = false);
+      newTiles.forEach(t => t.falling = false);
+      this.state.grid = JSON.parse(JSON.stringify(this.boardLogic.grid));
 
       currentCombo++;
       this.state.comboCount = currentCombo;

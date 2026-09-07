@@ -147,7 +147,7 @@
           {#each row as tile, c}
             <button
               type="button"
-              class="candy-tile type-{tile.type} {selectedRow === r && selectedCol === c ? 'selected' : ''}"
+              class="candy-tile type-{tile.type} {selectedRow === r && selectedCol === c ? 'selected' : ''} {tile.matched ? 'matched' : ''} {tile.falling ? 'falling' : ''}"
               onclick={() => handleTileClick(r, c)}
               ontouchstart={(e) => handleTouchStart(e, r, c)}
               ontouchmove={handleTouchMove}
@@ -270,12 +270,31 @@
     box-shadow: 0 6px 12px rgba(0, 0, 0, 0.12), inset 0 2px 2px rgba(255, 255, 255, 0.5);
     transition: transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.15s ease;
     overflow: hidden;
-    animation: tilePop 0.25s ease-out;
   }
 
-  @keyframes tilePop {
-    from { transform: scale(0.6) translateY(-10px); opacity: 0; }
-    to { transform: scale(1) translateY(0); opacity: 1; }
+  .candy-tile.falling {
+    animation: candyDrop 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  }
+
+  .candy-tile.matched {
+    animation: candyPop 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  }
+
+  @keyframes candyDrop {
+    from {
+      transform: translateY(-60px) scale(0.9);
+      opacity: 0.5;
+    }
+    to {
+      transform: translateY(0) scale(1);
+      opacity: 1;
+    }
+  }
+
+  @keyframes candyPop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.3) rotate(8deg); opacity: 0.9; }
+    100% { transform: scale(0); opacity: 0; }
   }
 
   .candy-tile:hover {
