@@ -77,6 +77,17 @@
     }
   }
 
+  function handlePointerMove(e: PointerEvent) {
+    if (!pointerStart || !engine || !gameState || gameState.isProcessing) return;
+
+    const dx = e.clientX - pointerStart.x;
+    const dy = e.clientY - pointerStart.y;
+
+    if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+      e.preventDefault();
+    }
+  }
+
   async function handlePointerUp(e: PointerEvent) {
     if (!pointerStart || !engine || !gameState || gameState.isProcessing) {
       pointerStart = null;
@@ -174,6 +185,7 @@
                 swipeHandled = false;
               }}
               onpointerdown={(e) => handlePointerDown(e, r, c)}
+              onpointermove={handlePointerMove}
               onpointerup={handlePointerUp}
               onpointercancel={handlePointerCancel}
               aria-label="Candy {tile.type}"
