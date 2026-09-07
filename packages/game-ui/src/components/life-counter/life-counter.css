@@ -1,0 +1,63 @@
+:host {
+  display: inline-block;
+}
+
+.life-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(30, 41, 59, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 6px 12px;
+  border-radius: 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.hearts-wrapper {
+  display: flex;
+  gap: 2px;
+}
+
+.heart {
+  font-size: 1rem;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.heart.empty {
+  opacity: 0.25;
+  filter: grayscale(1);
+}
+
+.life-text {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #f1f5f9;
+}
+
+.regeneration-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 4px;
+}
+
+.timer {
+  font-size: 0.75rem;
+  color: #fbbf24;
+}
+
+.refill-btn {
+  background: linear-gradient(135deg, #10b981, #059669);
+  border: none;
+  color: #ffffff;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.refill-btn:hover {
+  transform: scale(1.05);
+}
