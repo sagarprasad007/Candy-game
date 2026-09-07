@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
+    "prebuild": "npm run build --workspace=@cosmic-gems/game-ui",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run"

@@ -8,6 +8,7 @@
   "scripts": {
     "build:ui": "npm run build --workspace=packages/game-ui",
     "build:app": "npm run build --workspace=apps/game-app",
+    "prebuild": "npm run build:ui",
     "vercel-build": "npm run build",
     "build": "npm run build:ui && npm run build:app && node -e \"const fs=require('fs'); fs.cpSync('apps/game-app/build', 'build', { recursive: true });\"",
     "dev:app": "npm run dev --workspace=apps/game-app",
