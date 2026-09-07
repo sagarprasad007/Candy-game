@@ -26,19 +26,6 @@
 | `game-tile-selected` |             | `CustomEvent<{ row: number; col: number; }>` |
 
 
-## Dependencies
-
-### Used by
-
- - [game-board](../game-board)
-
-### Graph
-```mermaid
-graph TD;
-  game-board --> game-tile
-  style game-tile fill:#f9f,stroke:#333,stroke-width:4px
-```
-
 ----------------------------------------------
 
 *Built with [StencilJS](https://stenciljs.com/)*

@@ -7,14 +7,18 @@
 
 ## Properties
 
-| Property      | Attribute      | Description | Type                          | Default |
-| ------------- | -------------- | ----------- | ----------------------------- | ------- |
-| `cols`        | `cols`         |             | `number`                      | `8`     |
-| `disabled`    | `disabled`     |             | `boolean`                     | `false` |
-| `gridData`    | `grid-data`    |             | `BoardTileData[][] \| string` | `[]`    |
-| `rows`        | `rows`         |             | `number`                      | `8`     |
-| `selectedCol` | `selected-col` |             | `number`                      | `-1`    |
-| `selectedRow` | `selected-row` |             | `number`                      | `-1`    |
+| Property        | Attribute        | Description | Type                          | Default  |
+| --------------- | ---------------- | ----------- | ----------------------------- | -------- |
+| `activeEffects` | `active-effects` |             | `SpecialEffect[] \| string`   | `[]`     |
+| `cols`          | `cols`           |             | `number`                      | `8`      |
+| `disabled`      | `disabled`       |             | `boolean`                     | `false`  |
+| `gridData`      | `grid-data`      |             | `BoardTileData[][] \| string` | `[]`     |
+| `phase`         | `phase`          |             | `string`                      | `'idle'` |
+| `rows`          | `rows`           |             | `number`                      | `8`      |
+| `selectedCol`   | `selected-col`   |             | `number`                      | `-1`     |
+| `selectedRow`   | `selected-row`   |             | `number`                      | `-1`     |
+| `showFps`       | `show-fps`       |             | `boolean`                     | `false`  |
+| `swapAnimation` | `swap-animation` |             | `SwapAnimation \| string`     | `null`   |
 
 
 ## Events
@@ -24,19 +28,6 @@
 | `game-tile-selected` |             | `CustomEvent<{ row: number; col: number; }>`                                               |
 | `tile-swapped`       |             | `CustomEvent<{ from: { row: number; col: number; }; to: { row: number; col: number; }; }>` |
 
-
-## Dependencies
-
-### Depends on
-
-- [game-tile](../game-tile)
-
-### Graph
-```mermaid
-graph TD;
-  game-board --> game-tile
-  style game-board fill:#f9f,stroke:#333,stroke-width:4px
-```
 
 ----------------------------------------------
 

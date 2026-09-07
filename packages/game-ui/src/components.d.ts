@@ -6,9 +6,15 @@
  */
 import { HTMLStencilElement, JSXBase } from "@stencil/core/internal";
 import { BoardTileData } from "./components/game-board/game-board";
+import { SpecialEffect, SwapAnimation } from "./components/game-board/canvas-game-renderer";
 export { BoardTileData } from "./components/game-board/game-board";
+export { SpecialEffect, SwapAnimation } from "./components/game-board/canvas-game-renderer";
 export namespace Components {
     interface GameBoard {
+        /**
+          * @default []
+         */
+        "activeEffects": SpecialEffect[] | string;
         /**
           * @default 8
          */
@@ -22,6 +28,10 @@ export namespace Components {
          */
         "gridData": BoardTileData[][] | string;
         /**
+          * @default 'idle'
+         */
+        "phase": string;
+        /**
           * @default 8
          */
         "rows": number;
@@ -33,6 +43,14 @@ export namespace Components {
           * @default -1
          */
         "selectedRow": number;
+        /**
+          * @default false
+         */
+        "showFps": boolean;
+        /**
+          * @default null
+         */
+        "swapAnimation": SwapAnimation | string | null;
     }
     interface GameModal {
         /**
@@ -264,6 +282,10 @@ declare global {
 declare namespace LocalJSX {
     interface GameBoard {
         /**
+          * @default []
+         */
+        "activeEffects"?: SpecialEffect[] | string;
+        /**
           * @default 8
          */
         "cols"?: number;
@@ -284,6 +306,10 @@ declare namespace LocalJSX {
     to: { row: number; col: number };
   }>) => void;
         /**
+          * @default 'idle'
+         */
+        "phase"?: string;
+        /**
           * @default 8
          */
         "rows"?: number;
@@ -295,6 +321,14 @@ declare namespace LocalJSX {
           * @default -1
          */
         "selectedRow"?: number;
+        /**
+          * @default false
+         */
+        "showFps"?: boolean;
+        /**
+          * @default null
+         */
+        "swapAnimation"?: SwapAnimation | string | null;
     }
     interface GameModal {
         /**
@@ -406,6 +440,10 @@ declare namespace LocalJSX {
         "selectedRow": number;
         "selectedCol": number;
         "disabled": boolean;
+        "phase": string;
+        "swapAnimation": SwapAnimation | string | null;
+        "activeEffects": SpecialEffect[] | string;
+        "showFps": boolean;
     }
     interface GameModalAttributes {
         "isOpen": boolean;

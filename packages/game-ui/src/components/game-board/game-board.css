@@ -7,13 +7,16 @@
 }
 
 .board-container {
-  background: rgba(15, 23, 42, 0.75);
-  border: 2px solid rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(12px);
-  border-radius: 20px;
+  background: linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%);
+  border: 4px solid #f43f5e;
+  border-radius: 28px;
   padding: 12px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(255, 255, 255, 0.05);
+  box-shadow: 0 15px 35px rgba(225, 29, 72, 0.25);
   position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .board-container.disabled {
@@ -21,19 +24,12 @@
   opacity: 0.9;
 }
 
-.board-grid {
-  display: grid;
-  gap: 8px;
-  width: 100%;
-  aspect-ratio: 1;
-  touch-action: none;
-}
-
-.tile-wrapper {
+.board-canvas {
   width: 100%;
   height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
   touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
