@@ -12,7 +12,6 @@
   "devDependencies": {
     "@cosmic-gems/game-ui": "file:../../packages/game-ui",
     "@sveltejs/adapter-auto": "^4.0.0",
-    "@sveltejs/adapter-vercel": "^6.3.4",
     "@sveltejs/kit": "^2.0.0",
     "@sveltejs/vite-plugin-svelte": "^4.0.0",
     "@types/node": "^20.0.0",
