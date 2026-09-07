@@ -8,4 +8,5 @@ loader/
 !.env.example
 .DS_Store
 *.log
-.vercel
+.vercel/
+**/.vercel/
