@@ -11,6 +11,27 @@
 
   let showLoveLetter = $state(false);
 
+  const loveNotes = [
+    "Just like matching these sweet candies brings instant joy, every single moment with you fills my heart with endless sweetness and happiness. You are my favorite person, my sweetest reward, and the brightest star in my world! 🍬✨",
+    "If love were candy, you'd be the rarest, sweetest gem in the entire universe. Every puzzle I solve is dedicated to your gorgeous smile! 💕",
+    "No matter how tricky the level gets, thinking of your sweet hug gives me all the moves I need! You make my world feel magical every single day! 🌸✨",
+    "You are the sugar to my tea, the sparkle in my eyes, and the sweetest victory of my life! Happy level clear, my princess! 👑💖",
+    "Candy Kingdom has millions of sweets, but none of them can compare to how sweet and precious you are to me! 💕✨",
+    "Winning this level was fun, but winning your heart is the greatest achievement of my lifetime! Forever yours! 💖",
+    "Sending you a warm bear hug and a thousand sweet kisses for clearing this level! Keep shining bright, my love! 🧸✨",
+    "You make every single day feel like a magical candy adventure filled with love, laughter, and happiness! 💕",
+    "Every sweet combo match is a reminder of how perfectly we match together. I love you more than all the candies in the world! 🍬❤️",
+    "My heart does a happy little dance every time I think of you! You are my sweetest treasure forever and always! 💃💖"
+  ];
+
+  let selectedNote = $state('');
+
+  $effect(() => {
+    if (isWon) {
+      selectedNote = loveNotes[Math.floor(Math.random() * loveNotes.length)];
+    }
+  });
+
   function handleNextLevel() {
     if (levelId < 6) {
       goto(`/game/${levelId + 1}`);
@@ -35,6 +56,14 @@
     </div>
 
     {#if isWon}
+      <!-- Cute Animated Cartoon Mascot -->
+      <div class="cartoon-mascot-wrapper">
+        <div class="cartoon-character">
+          <div class="cute-bear">🧸</div>
+          <div class="sparkle-stars">✨💖✨</div>
+        </div>
+      </div>
+
       <div class="stars-row">
         <span class="star {stars >= 1 ? 'earned' : ''}">★</span>
         <span class="star {stars >= 2 ? 'earned' : ''}">★</span>
@@ -56,10 +85,10 @@
         <div class="love-letter-modal">
           <div class="letter-content">
             <div class="hearts-animation">💖 ✨ 💕 ✨ 💖</div>
+            <div class="cute-mascot-mini">🐰🎀</div>
             <h2>My Dearest Love,</h2>
             <p>
-              Just like matching these sweet candies brings instant joy, every single moment with you fills my heart with endless sweetness and happiness. 
-              You are my favorite person, my sweetest reward, and the brightest star in my world! 🍬✨
+              {selectedNote}
             </p>
             <p class="signature">Forever & Always Yours, ❤️</p>
             <button class="close-letter-btn" onclick={() => showLoveLetter = false}>Close Letter 💕</button>
