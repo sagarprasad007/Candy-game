@@ -15,6 +15,15 @@
         soundFx.startBgm();
       }
 
+      // Gesture-backed AudioContext resume listener for browser autoplay restriction compliance
+      const handleUserGesture = () => {
+        soundFx.resumeContext();
+        window.removeEventListener('pointerdown', handleUserGesture);
+        window.removeEventListener('click', handleUserGesture);
+      };
+      window.addEventListener('pointerdown', handleUserGesture);
+      window.addEventListener('click', handleUserGesture);
+
       try {
         // @ts-ignore
         const { defineCustomElement: defineGameBoard } = await import('@cosmic-gems/game-ui/dist/components/game-board.js');

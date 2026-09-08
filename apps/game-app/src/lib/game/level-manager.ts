@@ -122,14 +122,27 @@ export class LevelManager {
     // Procedural Level Generation for Unlimited Levels (id > 6)
     const difficulty: 'easy' | 'medium' | 'hard' =
       id % 3 === 0 ? 'hard' : id % 2 === 0 ? 'medium' : 'easy';
+    
+    // Scale board dimensions smoothly at higher level milestones (capped at 9x9 for performance)
+    const boardRows = id >= 50 ? 9 : 8;
+    const boardCols = id >= 50 ? 9 : 8;
+    const totalCells = boardRows * boardCols;
+
     const targetScore = 10000 + (id - 6) * 2500;
-    const moves = Math.max(12, 22 - Math.floor((id - 6) / 2));
+    const moves = Math.max(12, 24 - Math.floor((id - 6) / 3));
     const objTypeIndex = id % 4;
 
-    const titles = ['Cosmic Cluster', 'Galactic Core', 'Quantum Realm', 'Starlight Expanse', 'Astral Horizon'];
-    const title = `${titles[id % titles.length]} #${id}`;
+    // Rich Title Combinatorics ([Prefix] [Noun] [Suffix])
+    const prefixes = ['Cosmic', 'Galactic', 'Quantum', 'Starlight', 'Astral', 'Nebula', 'Solar', 'Crystal', 'Hyper', 'Celestial'];
+    const nouns = ['Cluster', 'Core', 'Realm', 'Expanse', 'Horizon', 'Vortex', 'Sanctuary', 'Pulsar', 'Drift', 'Eclipse'];
+    const pIdx = Math.abs((id * 17) % prefixes.length);
+    const nIdx = Math.abs((id * 31) % nouns.length);
+    const title = `${prefixes[pIdx]} ${nouns[nIdx]} #${id}`;
 
     let objective: LevelObjective = { type: 'score', targetScore };
+
+    // Maximum obstacle count clamped to 35% of board cells to guarantee playability
+    const maxObstacles = Math.floor(totalCells * 0.35);
 
     if (objTypeIndex === 1) {
       const types = ['ruby', 'sapphire', 'emerald', 'amber', 'amethyst'];
@@ -137,39 +150,58 @@ export class LevelManager {
         type: 'collect',
         targetScore,
         collectType: types[id % types.length],
-        collectCount: 15 + Math.min(20, (id - 6) * 2),
+        collectCount: 15 + Math.min(25, (id - 6) * 2),
       };
     } else if (objTypeIndex === 2) {
       objective = {
         type: 'obstacle',
         targetScore,
-        obstacleCount: Math.min(16, 6 + Math.floor((id - 6) * 1.5)),
+        obstacleCount: Math.min(maxObstacles, 6 + Math.floor((id - 6) * 1.2)),
       };
     } else if (objTypeIndex === 3) {
       objective = {
         type: 'jelly',
         targetScore,
-        obstacleCount: Math.min(16, 6 + Math.floor((id - 6) * 1.5)),
+        obstacleCount: Math.min(maxObstacles, 6 + Math.floor((id - 6) * 1.2)),
       };
+    }
+
+    // Seeded Fisher-Yates shuffle to guarantee unique cell placement without period-8 collision
+    const allPositions: { row: number; col: number }[] = [];
+    for (let r = 0; r < boardRows; r++) {
+      for (let c = 0; c < boardCols; c++) {
+        allPositions.push({ row: r, col: c });
+      }
+    }
+
+    // Pseudo-random deterministic generator seeded by level ID
+    let seed = id * 9301 + 49297;
+    const rnd = () => {
+      seed = (seed * 9301 + 49297) % 233280;
+      return seed / 233280;
+    };
+
+    // Shuffle board positions
+    for (let i = allPositions.length - 1; i > 0; i--) {
+      const j = Math.floor(rnd() * (i + 1));
+      [allPositions[i], allPositions[j]] = [allPositions[j], allPositions[i]];
     }
 
     const initialIceBlocks: { row: number; col: number; state: 'ice-1' | 'ice-2' }[] = [];
     if (objective.type === 'obstacle') {
-      const count = objective.obstacleCount || 6;
+      const count = Math.min(objective.obstacleCount || 6, allPositions.length);
       for (let i = 0; i < count; i++) {
-        const r = (i * 2 + 1) % 8;
-        const c = (i * 3 + 1) % 8;
-        initialIceBlocks.push({ row: r, col: c, state: i % 2 === 0 ? 'ice-2' : 'ice-1' });
+        const pos = allPositions[i];
+        initialIceBlocks.push({ row: pos.row, col: pos.col, state: i % 2 === 0 ? 'ice-2' : 'ice-1' });
       }
     }
 
     const initialJellies: { row: number; col: number; state: 'single' | 'double' }[] = [];
     if (objective.type === 'jelly') {
-      const count = objective.obstacleCount || 6;
+      const count = Math.min(objective.obstacleCount || 6, allPositions.length);
       for (let i = 0; i < count; i++) {
-        const r = (i * 2 + 2) % 8;
-        const c = (i * 3 + 2) % 8;
-        initialJellies.push({ row: r, col: c, state: i % 2 === 0 ? 'double' : 'single' });
+        const pos = allPositions[i];
+        initialJellies.push({ row: pos.row, col: pos.col, state: i % 2 === 0 ? 'double' : 'single' });
       }
     }
 
@@ -177,8 +209,8 @@ export class LevelManager {
       id,
       title,
       difficulty,
-      boardRows: 8,
-      boardCols: 8,
+      boardRows,
+      boardCols,
       moves,
       objective,
       initialIceBlocks,
@@ -186,7 +218,7 @@ export class LevelManager {
     };
   }
 
-  getAllLevels(): LevelConfig[] {
+  getHandAuthoredLevels(): LevelConfig[] {
     return GAME_LEVELS;
   }
 }

@@ -4,15 +4,29 @@
   import { goto } from '$app/navigation';
 
   const levelManager = new LevelManager();
-  
+
   const highestUnlocked = $derived(
     Math.max(1, ...(playerStore.progress.unlockedLevels || [1]))
   );
-  // Show all levels up to highest unlocked level + 5 upcoming levels to support infinite levels!
-  const displayedLevelCount = $derived(Math.max(10, highestUnlocked + 5));
-  const allLevels = $derived(
-    Array.from({ length: displayedLevelCount }, (_, i) => levelManager.getLevel(i + 1))
-  );
+
+  const PAGE_SIZE = 10;
+  let currentPage = $state(1);
+  let jumpInput = $state('');
+
+  // Automatically start user on page containing highest unlocked level
+  $effect(() => {
+    const defaultPage = Math.ceil(highestUnlocked / PAGE_SIZE);
+    if (currentPage === 1 && defaultPage > 1) {
+      currentPage = defaultPage;
+    }
+  });
+
+  const totalDisplayedPages = $derived(Math.ceil((highestUnlocked + 5) / PAGE_SIZE));
+
+  const pageLevels = $derived.by(() => {
+    const startId = (currentPage - 1) * PAGE_SIZE + 1;
+    return Array.from({ length: PAGE_SIZE }, (_, i) => levelManager.getLevel(startId + i));
+  });
 
   let activeModalMsg = $state<string | null>(null);
 
@@ -26,6 +40,15 @@
       return;
     }
     goto(`/game/${levelId}`);
+  }
+
+  function handleJumpToLevel() {
+    const target = parseInt(jumpInput.trim());
+    if (!isNaN(target) && target > 0) {
+      const page = Math.ceil(target / PAGE_SIZE);
+      currentPage = page;
+      jumpInput = '';
+    }
   }
 
   function closeModal() {
@@ -49,8 +72,38 @@
     <p>Journey through the Candy Kingdom! Win levels to unlock new sweet sectors.</p>
   </div>
 
+  <div class="pagination-bar">
+    <button
+      class="nav-page-btn"
+      disabled={currentPage <= 1}
+      onclick={() => currentPage--}
+    >
+      ◀ Prev
+    </button>
+    <span class="page-indicator">Page {currentPage} of {totalDisplayedPages} (Levels {(currentPage - 1) * PAGE_SIZE + 1}–{currentPage * PAGE_SIZE})</span>
+    <button
+      class="nav-page-btn"
+      disabled={currentPage >= totalDisplayedPages}
+      onclick={() => currentPage++}
+    >
+      Next ▶
+    </button>
+
+    <div class="jump-box">
+      <input
+        type="number"
+        placeholder="Lvl #"
+        min="1"
+        bind:value={jumpInput}
+        onkeydown={(e) => e.key === 'Enter' && handleJumpToLevel()}
+        class="jump-input"
+      />
+      <button class="jump-btn" onclick={handleJumpToLevel}>Go 🚀</button>
+    </div>
+  </div>
+
   <div class="levels-map">
-    {#each allLevels as lvl}
+    {#each pageLevels as lvl}
       {@const isLocked = !playerStore.progress.unlockedLevels.includes(lvl.id)}
       {@const stars = playerStore.progress.stars[lvl.id] || 0}
       {@const bestScore = playerStore.progress.bestScores[lvl.id] || 0}
@@ -300,5 +353,70 @@
     font-size: 0.95rem;
     cursor: pointer;
     box-shadow: 0 4px 12px rgba(244, 63, 94, 0.3);
+  }
+
+  .pagination-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    background: #ffffff;
+    border: 3px solid #f472b6;
+    border-radius: 20px;
+    padding: 12px 16px;
+    box-shadow: 0 6px 16px rgba(244, 114, 182, 0.2);
+  }
+
+  .nav-page-btn {
+    background: linear-gradient(90deg, #f43f5e, #ec4899);
+    color: #ffffff;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 14px;
+    font-weight: 800;
+    font-size: 0.85rem;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(244, 63, 94, 0.3);
+  }
+
+  .nav-page-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+
+  .page-indicator {
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: #881337;
+  }
+
+  .jump-box {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .jump-input {
+    width: 60px;
+    padding: 6px 10px;
+    border: 2px solid #f472b6;
+    border-radius: 12px;
+    font-weight: 800;
+    font-size: 0.85rem;
+    color: #881337;
+    outline: none;
+  }
+
+  .jump-btn {
+    background: #10b981;
+    color: #ffffff;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 12px;
+    font-weight: 800;
+    font-size: 0.85rem;
+    cursor: pointer;
   }
 </style>

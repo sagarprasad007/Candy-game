@@ -1,10 +1,7 @@
 <script lang="ts">
   import { playerStore } from '$lib/stores/playerStore';
-  import { LevelManager } from '$lib/game/level-manager';
   import { goto } from '$app/navigation';
 
-  const levelManager = new LevelManager();
-  const maxLevels = levelManager.getAllLevels().length;
   const currentLevelId = playerStore.progress.currentLevel;
 
   let showLivesModal = $state(false);
