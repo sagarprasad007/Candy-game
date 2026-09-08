@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { GameBoardLogic, createRandomTile, type Grid } from '../game/board';
 import { MatchDetector } from '../game/match-detector';
 import { GameEngine } from '../game/game-engine';
+import { LevelManager } from '../game/level-manager';
 
 describe('Match-3 Game Engine & Special Logic Tests', () => {
   let detector: MatchDetector;
@@ -258,5 +259,38 @@ describe('Match-3 Game Engine & Special Logic Tests', () => {
     losingEngine.state.score = 0;
     losingEngine.checkGameStatus();
     expect(losingEngine.state.status).toBe('lost');
+  });
+
+  // 21. Level 3 obstacles consistency
+  it('21. Level 3 contains exactly 6 ice obstacles matching level configuration source of truth', () => {
+    const levelManager = new LevelManager();
+    const config = levelManager.getLevel(3);
+    expect(config.initialIceBlocks?.length).toBe(6);
+
+    const engine = new GameEngine(3);
+    let iceCount = 0;
+    for (let r = 0; r < engine.boardLogic.rows; r++) {
+      for (let c = 0; c < engine.boardLogic.cols; c++) {
+        if (engine.boardLogic.grid[r][c].obstacle !== 'none') iceCount++;
+      }
+    }
+    expect(iceCount).toBe(6);
+  });
+
+  // 22. Damaging ice obstacles & HUD progress tracking
+  it('22. matching adjacent to ice damages ice and increments destroyedObstacles HUD progress count', () => {
+    const engine = new GameEngine(3);
+
+    // Level 3 config has initialIceBlocks at (2,2), (2,5), (3,3), (3,4), (5,2), (5,5)
+    // Place 3 matching ruby tiles horizontally at row 1, cols 1, 2, 3 (adjacent to ice at (2,2))
+    engine.boardLogic.grid[1][1].type = 'ruby';
+    engine.boardLogic.grid[1][2].type = 'ruby';
+    engine.boardLogic.grid[1][3].type = 'ruby';
+
+    const matches = engine.matchDetector.findMatches(engine.boardLogic.grid, 8, 8);
+    expect(matches.damagedObstacles.length).toBeGreaterThan(0);
+    const damaged = matches.damagedObstacles.find((obs) => obs.row === 2 && obs.col === 2);
+    expect(damaged).toBeDefined();
+    expect(damaged?.newObstacleState).toBe('none'); // ice-1 damaged becomes 'none'
   });
 });

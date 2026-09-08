@@ -199,6 +199,13 @@
       const stars = score >= target * 1.5 ? 3 : score >= target * 1.15 ? 2 : 1;
       playerStore.recordLevelCompletion(levelId, score, stars);
 
+      // Chapter-complete celebration (every 15 levels) & Milestone rewards (every 10th level)
+      if (levelId % 15 === 0) {
+        playerStore.addCoins(150); // World completion bonus!
+      } else if (levelId % 10 === 0) {
+        playerStore.addCoins(50); // Milestone level bonus!
+      }
+
       activeStory = generateStory({
         levelId,
         score,
@@ -248,6 +255,30 @@
         <span class="info-val moves-num">{gameState.remainingMoves}</span>
       </div>
     </div>
+
+    <!-- OBSTACLE PROGRESS HUD BAR -->
+    {#if gameState.levelConfig.objective.type === 'obstacle' || (gameState.levelConfig.objective.type as string) === 'jelly'}
+      {@const targetObs = gameState.levelConfig.objective.obstacleCount || 0}
+      {@const destroyed = Math.min(targetObs, gameState.destroyedObstacles)}
+      {@const isCleared = destroyed >= targetObs}
+
+      <div class="obstacle-hud-card {isCleared ? 'cleared' : ''}">
+        <div class="obs-hud-header">
+          <span class="obs-title">
+            {#if (gameState.levelConfig.objective.type as string) === 'jelly'}🍯 JELLY CLEARED{:else}🧊 ICE DESTROYED{/if}
+          </span>
+          <span class="obs-count-badge {isCleared ? 'pop-cleared' : ''}">
+            {#if isCleared}✨ CLEARED!{:else}{destroyed} / {targetObs}{/if}
+          </span>
+        </div>
+        <div class="obs-progress-bg">
+          <div
+            class="obs-progress-fill {isCleared ? 'fill-cleared' : ''}"
+            style="width: {targetObs > 0 ? (destroyed / targetObs) * 100 : 100}%"
+          ></div>
+        </div>
+      </div>
+    {/if}
 
     <!-- FEVER MODE Meter Bar -->
     <div class="fever-meter-wrapper">
@@ -367,6 +398,76 @@
 
   .moves-low-glow .moves-num {
     animation: tensionPulse 0.6s infinite alternate ease-in-out;
+  }
+
+  .obstacle-hud-card {
+    width: 100%;
+    background: #ffffff;
+    border: 2.5px solid #38bdf8;
+    border-radius: 16px;
+    padding: 8px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    box-sizing: border-box;
+    box-shadow: 0 4px 14px rgba(56, 189, 248, 0.25);
+    transition: all 0.3s ease;
+  }
+
+  .obstacle-hud-card.cleared {
+    border-color: #10b981;
+    background: #ecfdf5;
+    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+  }
+
+  .obs-hud-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .obs-title {
+    font-size: 0.75rem;
+    font-weight: 900;
+    color: #0369a1;
+  }
+
+  .obstacle-hud-card.cleared .obs-title {
+    color: #047857;
+  }
+
+  .obs-count-badge {
+    font-size: 0.85rem;
+    font-weight: 900;
+    color: #0284c7;
+    background: #e0f2fe;
+    padding: 2px 10px;
+    border-radius: 12px;
+    transition: transform 0.2s ease;
+  }
+
+  .obs-count-badge.pop-cleared {
+    background: #10b981;
+    color: #ffffff;
+    animation: popBounce 0.4s ease;
+  }
+
+  .obs-progress-bg {
+    width: 100%;
+    height: 8px;
+    background: #e0f2fe;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .obs-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #38bdf8, #0284c7);
+    transition: width 0.3s ease;
+  }
+
+  .obs-progress-fill.fill-cleared {
+    background: linear-gradient(90deg, #34d399, #10b981);
   }
 
   @keyframes tensionPulse {

@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { page } from '$app/state';
+  import { fade } from 'svelte/transition';
   import { playerStore } from '$lib/stores/playerStore';
   import { soundFx } from '$lib/audio/sound';
 
@@ -94,7 +96,11 @@
     </header>
 
     <main class="content-area">
-      {@render children()}
+      {#key page.url.pathname}
+        <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="route-transition-container">
+          {@render children()}
+        </div>
+      {/key}
     </main>
   </div>
 {/if}
@@ -256,6 +262,13 @@
     padding: 16px;
     display: flex;
     flex-direction: column;
+  }
+
+  .route-transition-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
   }
 
   /* Bottom Navigation Bar - Permanently Fixed Always Visible */

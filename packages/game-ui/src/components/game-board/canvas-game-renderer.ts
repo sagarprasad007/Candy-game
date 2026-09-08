@@ -840,46 +840,82 @@ export class CanvasGameRenderer {
       ctx.fillText(badgeIcon, w / 2 - 8 * scaleX, -h / 2 + 9 * scaleY);
     }
 
-    // Section 1.2A: Re-skin Ice Obstacle (Frosted Blue + Crack Lines)
+    // Translucent Crystalline Ice & Frozen Jelly Obstacle Layer (Candy remains partially visible underneath)
     if (vTile.obstacle && vTile.obstacle !== 'none') {
       ctx.save();
+      const isDamaged = vTile.obstacle === 'ice-1';
+      const shimmerOffset = !this.prefersReducedMotion ? Math.sin(now * 0.003 + r * 0.5 + c * 0.5) * (w * 0.2) : 0;
+
+      // Crystalline Ice Outer Glow
+      ctx.shadowColor = 'rgba(56, 189, 248, 0.75)';
+      ctx.shadowBlur = isDamaged ? 6 : 12;
+
+      // Outer Rounded Crystal Shell
       ctx.beginPath();
-      ctx.roundRect(-w / 2, -h / 2, w, h, radius);
+      ctx.roundRect(-w / 2 + 1, -h / 2 + 1, w - 2, h - 2, radius);
 
-      if (vTile.obstacle === 'ice-2') {
-        const iceGrad = ctx.createLinearGradient(-w / 2, -h / 2, w / 2, h / 2);
-        iceGrad.addColorStop(0, 'rgba(224, 242, 254, 0.88)');
-        iceGrad.addColorStop(1, 'rgba(56, 189, 248, 0.78)');
-        ctx.fillStyle = iceGrad;
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
-        ctx.lineWidth = 2 * Math.min(scaleX, scaleY);
-        ctx.stroke();
-        ctx.font = `${Math.round(20 * Math.min(scaleX, scaleY))}px sans-serif`;
-        ctx.fillText('❄️', 0, 2);
-      } else if (vTile.obstacle === 'ice-1') {
-        const iceGrad = ctx.createLinearGradient(-w / 2, -h / 2, w / 2, h / 2);
-        iceGrad.addColorStop(0, 'rgba(224, 242, 254, 0.65)');
-        iceGrad.addColorStop(1, 'rgba(125, 211, 252, 0.55)');
-        ctx.fillStyle = iceGrad;
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
-        ctx.lineWidth = 2 * Math.min(scaleX, scaleY);
-        ctx.stroke();
-
-        ctx.beginPath();
-        ctx.moveTo(-w * 0.3, -h * 0.25);
-        ctx.lineTo(0, h * 0.05);
-        ctx.lineTo(w * 0.25, -h * 0.3);
-        ctx.moveTo(0, h * 0.05);
-        ctx.lineTo(-w * 0.1, h * 0.3);
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2.5 * Math.min(scaleX, scaleY);
-        ctx.stroke();
-
-        ctx.font = `${Math.round(18 * Math.min(scaleX, scaleY))}px sans-serif`;
-        ctx.fillText('🧊', 0, 2);
+      // Translucent Ice Gradient
+      const iceGrad = ctx.createLinearGradient(-w / 2 + shimmerOffset, -h / 2, w / 2 + shimmerOffset, h / 2);
+      if (isDamaged) {
+        iceGrad.addColorStop(0, 'rgba(224, 242, 254, 0.55)');
+        iceGrad.addColorStop(0.5, 'rgba(186, 230, 253, 0.45)');
+        iceGrad.addColorStop(1, 'rgba(125, 211, 252, 0.35)');
+      } else {
+        iceGrad.addColorStop(0, 'rgba(224, 242, 254, 0.78)');
+        iceGrad.addColorStop(0.4, 'rgba(186, 230, 253, 0.65)');
+        iceGrad.addColorStop(1, 'rgba(56, 189, 248, 0.55)');
       }
+      ctx.fillStyle = iceGrad;
+      ctx.fill();
+
+      // Crystalline Border Highlight
+      ctx.shadowBlur = 0;
+      ctx.lineWidth = 2.5 * Math.min(scaleX, scaleY);
+      ctx.strokeStyle = isDamaged ? 'rgba(255, 255, 255, 0.75)' : 'rgba(255, 255, 255, 0.95)';
+      ctx.stroke();
+
+      // Inner Glossy Highlight Curve
+      ctx.beginPath();
+      ctx.ellipse(-w * 0.1, -h * 0.25, w * 0.32, h * 0.12, Math.PI / 6, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+      ctx.fill();
+
+      // Visible Vector Crack Paths (Draws on damaged ice-1 or subtle facets on ice-2)
+      ctx.beginPath();
+      if (isDamaged) {
+        // Deep Shatter Cracks
+        ctx.moveTo(-w * 0.38, -h * 0.32);
+        ctx.lineTo(-w * 0.05, -h * 0.02);
+        ctx.lineTo(w * 0.35, -h * 0.35);
+        ctx.moveTo(-w * 0.05, -h * 0.02);
+        ctx.lineTo(-w * 0.15, h * 0.38);
+        ctx.moveTo(-w * 0.05, -h * 0.02);
+        ctx.lineTo(w * 0.32, h * 0.22);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+        ctx.lineWidth = 2.8 * Math.min(scaleX, scaleY);
+      } else {
+        // Subtle Crystalline Facet Lines
+        ctx.moveTo(-w * 0.3, -h * 0.3);
+        ctx.lineTo(-w * 0.1, -h * 0.1);
+        ctx.lineTo(w * 0.25, -h * 0.28);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.lineWidth = 1.5 * Math.min(scaleX, scaleY);
+      }
+      ctx.stroke();
+
+      // Internal Floating Ice Crystals Sparkle (Animated if motion enabled)
+      if (!this.prefersReducedMotion && !isDamaged) {
+        const sparkleScale = 0.8 + Math.sin(now * 0.006 + r * 2) * 0.25;
+        ctx.save();
+        ctx.translate(w * 0.2, -h * 0.15);
+        ctx.scale(sparkleScale, sparkleScale);
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(0, 0, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
       ctx.restore();
     }
 
