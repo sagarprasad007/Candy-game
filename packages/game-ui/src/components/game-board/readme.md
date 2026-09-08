@@ -13,6 +13,7 @@
 | `cols`          | `cols`           |             | `number`  | `8`      |
 | `disabled`      | `disabled`       |             | `boolean` | `false`  |
 | `gridData`      | `grid-data`      |             | `any`     | `[]`     |
+| `hintMove`      | `hint-move`      |             | `any`     | `null`   |
 | `isFever`       | `is-fever`       |             | `boolean` | `false`  |
 | `phase`         | `phase`          |             | `string`  | `'idle'` |
 | `rows`          | `rows`           |             | `number`  | `8`      |

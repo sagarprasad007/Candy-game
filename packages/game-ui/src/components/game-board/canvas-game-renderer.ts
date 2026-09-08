@@ -119,6 +119,7 @@ export class CanvasGameRenderer {
   public phase: string = 'idle';
   public disabled: boolean = false;
   public showFps: boolean = false;
+  public hintMove: { fromRow: number; fromCol: number; toRow: number; toCol: number } | null = null;
   public isFever = false;
   public isDirty: boolean = true;
 
@@ -541,8 +542,9 @@ export class CanvasGameRenderer {
       this.drawVisualTile(vTile, now);
     }
 
-    // 3. Draw Board-Wide Special Effects
+    // 3. Draw Board-Wide Special Effects & Hint Pulse Overlay
     this.drawActiveSpecialEffects(now);
+    this.drawHintHighlight(now);
 
     // 4. Draw Particles
     this.drawParticles();
@@ -552,6 +554,32 @@ export class CanvasGameRenderer {
       this.drawFpsOverlay();
     }
     ctx.restore();
+  }
+
+  private drawHintHighlight(now: number): void {
+    if (!this.hintMove) return;
+    const ctx = this.ctx;
+    const { fromRow, fromCol, toRow, toCol } = this.hintMove;
+
+    const pulse = !this.prefersReducedMotion ? 0.7 + Math.sin(now * 0.008) * 0.3 : 0.85;
+
+    [
+      { r: fromRow, c: fromCol },
+      { r: toRow, c: toCol },
+    ].forEach((cell) => {
+      const x = this.originX + cell.c * this.cellPitchX;
+      const y = this.originY + cell.r * this.cellPitchY;
+      ctx.save();
+      ctx.globalAlpha = pulse;
+      ctx.strokeStyle = '#fbbf24';
+      ctx.lineWidth = 3.5;
+      ctx.shadowColor = '#f59e0b';
+      ctx.shadowBlur = 12;
+      ctx.beginPath();
+      ctx.roundRect(x - 2, y - 2, this.cellWidth + 4, this.cellHeight + 4, 14);
+      ctx.stroke();
+      ctx.restore();
+    });
   }
 
   private updateTilePosition(vTile: VisualTileState, now: number): void {

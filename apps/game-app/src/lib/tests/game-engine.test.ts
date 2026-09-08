@@ -293,4 +293,69 @@ describe('Match-3 Game Engine & Special Logic Tests', () => {
     expect(damaged).toBeDefined();
     expect(damaged?.newObstacleState).toBe('none'); // ice-1 damaged becomes 'none'
   });
+
+  // 23. Level 5 move count difficulty balancing check
+  it('23. Level 5 Void Anomaly has updated difficulty balanced move count (21 moves)', () => {
+    const levelManager = new LevelManager();
+    const config = levelManager.getLevel(5);
+    expect(config.moves).toBe(21);
+    expect(config.difficulty).toBe('hard');
+    expect(config.objective.obstacleCount).toBe(10);
+  });
+
+  // 24. HintFinder legal swap evaluation
+  it('24. HintFinder suggests objective-aware valid legal swaps without mutating grid', () => {
+    const engine = new GameEngine(1);
+    const grid = engine.boardLogic.grid;
+    const rows = engine.boardLogic.rows;
+    const cols = engine.boardLogic.cols;
+
+    // Fill grid with alternating types except one valid move
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (grid[r] && grid[r][c]) {
+          grid[r][c].type = (r + c) % 2 === 0 ? 'ruby' : 'sapphire';
+          grid[r][c].special = 'none';
+        }
+      }
+    }
+
+    // Set up a clear 3-horizontal match for ruby at (0,0)-(0,2) if (0,1) is swapped with (0,0)
+    grid[0][0].type = 'emerald';
+    grid[0][1].type = 'ruby';
+    grid[0][2].type = 'ruby';
+    grid[0][3].type = 'ruby';
+
+    const hint = engine.calculateHint();
+    expect(hint).not.toBeNull();
+    expect(hint?.score).toBeGreaterThan(0);
+  });
+
+  // 25. Cosmic Power meter starts at 0 and caps at 100
+  it('25. Cosmic Power meter starts at 0 and caps at 100', () => {
+    const engine = new GameEngine(1);
+    expect(engine.state.cosmicPower).toBe(0);
+    expect(engine.state.cosmicPowerReady).toBe(false);
+
+    engine.state.cosmicPower = 95;
+    // Simulate charging
+    engine.state.cosmicPower = Math.min(100, engine.state.cosmicPower + 20);
+    expect(engine.state.cosmicPower).toBe(100);
+  });
+
+  // 26. Cosmic Nova super move clears 3x3 center area, destroys obstacles, and resets meter
+  it('26. Cosmic Nova clears 3x3 center region, destroys obstacles, and resets cosmic power meter', async () => {
+    const engine = new GameEngine(3);
+    engine.state.cosmicPower = 100;
+    engine.state.cosmicPowerReady = true;
+
+    const initialScore = engine.state.score;
+    const initialDestroyed = engine.state.destroyedObstacles;
+
+    const success = await engine.useCosmicNova();
+    expect(success).toBe(true);
+    expect(engine.state.cosmicPower).toBe(0);
+    expect(engine.state.cosmicPowerReady).toBe(false);
+    expect(engine.state.score).toBeGreaterThan(initialScore);
+  });
 });

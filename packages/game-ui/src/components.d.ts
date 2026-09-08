@@ -25,6 +25,10 @@ export namespace Components {
          */
         "gridData": any;
         /**
+          * @default null
+         */
+        "hintMove": any;
+        /**
           * @default false
          */
         "isFever": boolean;
@@ -299,6 +303,10 @@ declare namespace LocalJSX {
          */
         "gridData"?: any;
         /**
+          * @default null
+         */
+        "hintMove"?: any;
+        /**
           * @default false
          */
         "isFever"?: boolean;
@@ -448,6 +456,7 @@ declare namespace LocalJSX {
         "phase": string;
         "swapAnimation": string;
         "activeEffects": string;
+        "hintMove": string;
         "isFever": boolean;
         "showFps": boolean;
     }

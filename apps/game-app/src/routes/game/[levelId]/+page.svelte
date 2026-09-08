@@ -19,6 +19,25 @@
   let showPreLevelModal = $state(true);
   let boardEl: any = $state(null);
 
+  let hintTimer: any = null;
+  let activeHint = $state<{ fromRow: number; fromCol: number; toRow: number; toCol: number } | null>(null);
+
+  function resetHintTimer() {
+    activeHint = null;
+    if (hintTimer) clearTimeout(hintTimer);
+    if (!engine || gameState?.isProcessing || gameState?.status !== 'playing' || showPreLevelModal || activeStory) return;
+
+    hintTimer = setTimeout(() => {
+      if (engine && !gameState?.isProcessing && gameState?.status === 'playing') {
+        const hint = engine.calculateHint();
+        if (hint) {
+          activeHint = { fromRow: hint.fromRow, fromCol: hint.fromCol, toRow: hint.toRow, toCol: hint.toCol };
+          syncBoardProps();
+        }
+      }
+    }, 6000);
+  }
+
   function syncBoardProps() {
     if (boardEl && gameState) {
       boardEl.gridData = gameState.grid;
@@ -30,6 +49,7 @@
       boardEl.phase = gameState.phase;
       boardEl.swapAnimation = gameState.swapAnimation;
       boardEl.activeEffects = gameState.activeEffects;
+      boardEl.hintMove = activeHint;
       boardEl.isFever = gameState.isFeverMode;
       if (typeof boardEl.forceRefresh === 'function') {
         boardEl.forceRefresh();
@@ -63,16 +83,22 @@
     engine.onStateChange = (newState) => {
       gameState = { ...newState };
       syncBoardProps();
+      resetHintTimer();
     };
 
     // Ensure properties are synchronized after custom elements definition & DOM render
     syncBoardProps();
+    resetHintTimer();
     setTimeout(() => {
       syncBoardProps();
       if (boardEl && typeof boardEl.componentOnReady === 'function') {
         boardEl.componentOnReady().then(() => syncBoardProps());
       }
     }, 50);
+
+    return () => {
+      if (hintTimer) clearTimeout(hintTimer);
+    };
   });
 
   function handleStartLevel(preBoosters: string[]) {
@@ -159,6 +185,19 @@
       if (success && engine.state.status !== 'playing') {
         handleGameOver(engine.state.status);
       }
+    }
+  }
+
+  async function handleCosmicNova() {
+    if (!engine || !gameState || gameState.isProcessing || !gameState.cosmicPowerReady) return;
+    isHammerMode = false;
+    selectedRow = -1;
+    selectedCol = -1;
+    soundFx.playWinSound();
+    const success = await engine.useCosmicNova();
+    gameState = { ...engine.state };
+    if (success && engine.state.status !== 'playing') {
+      handleGameOver(engine.state.status);
     }
   }
 
@@ -280,6 +319,23 @@
       </div>
     {/if}
 
+    <!-- COSMIC POWER METER BAR -->
+    <div class="cosmic-meter-wrapper {gameState.cosmicPowerReady ? 'ready-pulse' : ''}">
+      <div class="cosmic-label">
+        {#if gameState.cosmicPowerReady}
+          ✨ COSMIC POWER READY! TAP NOVA BELOW! ✨
+        {:else}
+          🌟 COSMIC POWER: {Math.round(gameState.cosmicPower)}%
+        {/if}
+      </div>
+      <div class="cosmic-bar">
+        <div
+          class="cosmic-fill {gameState.cosmicPowerReady ? 'fill-ready' : ''}"
+          style="width: {gameState.cosmicPower}%"
+        ></div>
+      </div>
+    </div>
+
     <!-- FEVER MODE Meter Bar -->
     <div class="fever-meter-wrapper">
       <div class="fever-label">
@@ -324,6 +380,17 @@
     </div>
 
     <div class="boosters-bar">
+      <button
+        type="button"
+        class="booster-btn cosmic-nova-btn {gameState.cosmicPowerReady ? 'ready' : ''}"
+        disabled={gameState.isProcessing || !gameState.cosmicPowerReady}
+        onclick={handleCosmicNova}
+        aria-label="Activate Cosmic Nova Super Move"
+      >
+        <span class="booster-icon">🌟</span>
+        <span class="booster-label">Cosmic Nova</span>
+      </button>
+
       <button
         type="button"
         class="booster-btn {isHammerMode ? 'active' : ''}"
@@ -480,6 +547,75 @@
       color: #ff0033;
       text-shadow: 0 0 16px rgba(255, 0, 51, 0.9);
     }
+  }
+
+  .cosmic-meter-wrapper {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    transition: transform 0.3s ease;
+  }
+
+  .cosmic-meter-wrapper.ready-pulse {
+    animation: cosmicGlowPulse 1.2s infinite alternate ease-in-out;
+  }
+
+  .cosmic-label {
+    font-size: 0.75rem;
+    font-weight: 900;
+    color: #0284c7;
+    text-align: center;
+    letter-spacing: 0.5px;
+  }
+
+  .cosmic-bar {
+    width: 100%;
+    height: 12px;
+    background: rgba(186, 230, 253, 0.4);
+    border: 2.5px solid #0284c7;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .cosmic-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #38bdf8, #818cf8, #c084fc);
+    transition: width 0.3s ease;
+  }
+
+  .cosmic-fill.fill-ready {
+    background: linear-gradient(90deg, #fbbf24, #f43f5e, #a855f7, #38bdf8);
+    background-size: 200% 100%;
+    animation: rainbowMove 1.5s infinite linear;
+  }
+
+  @keyframes rainbowMove {
+    0% { background-position: 0% 50%; }
+    100% { background-position: 100% 50%; }
+  }
+
+  @keyframes cosmicGlowPulse {
+    from { transform: scale(1); filter: drop-shadow(0 0 4px rgba(56, 189, 248, 0.4)); }
+    to { transform: scale(1.02); filter: drop-shadow(0 0 12px rgba(168, 85, 247, 0.8)); }
+  }
+
+  .cosmic-nova-btn {
+    border-color: #818cf8;
+    color: #3730a3;
+  }
+
+  .cosmic-nova-btn.ready {
+    background: linear-gradient(135deg, #a855f7, #ec4899);
+    color: #ffffff;
+    border-color: #f43f5e;
+    box-shadow: 0 0 18px rgba(168, 85, 247, 0.6);
+    animation: readyBounce 0.8s infinite alternate ease-in-out;
+  }
+
+  @keyframes readyBounce {
+    from { transform: scale(1); }
+    to { transform: scale(1.06); }
   }
 
   .fever-meter-wrapper {

@@ -2,6 +2,7 @@ import { GameBoardLogic, cloneGrid, hasValidMoves, type Grid, type TileData } fr
 import { MatchDetector } from './match-detector';
 import { ScoringSystem } from './scoring';
 import { LevelManager, type LevelConfig } from './level-manager';
+import { HintFinder, type HintMove } from './hint-finder';
 import { soundFx } from '../audio/sound';
 
 export type GamePhase =
@@ -34,12 +35,15 @@ export interface GameEngineState {
   streakCount: number;
   isFeverMode: boolean;
   feverMeter: number;
+  cosmicPower: number;
+  cosmicPowerReady: boolean;
   isProcessing: boolean;
   status: 'playing' | 'won' | 'lost';
   phase: GamePhase;
   swapAnimation?: { fromRow: number; fromCol: number; toRow: number; toCol: number; reversing?: boolean } | null;
   bannerMessage?: string;
   activeEffects?: SpecialEffect[];
+  hintMove?: { fromRow: number; fromCol: number; toRow: number; toCol: number } | null;
 }
 
 export class GameEngine {
@@ -47,6 +51,7 @@ export class GameEngine {
   matchDetector: MatchDetector;
   scoringSystem: ScoringSystem;
   levelManager: LevelManager;
+  hintFinder: HintFinder;
   state: GameEngineState;
   onCascade?: (combo: number) => void;
 
@@ -57,6 +62,7 @@ export class GameEngine {
     this.boardLogic = new GameBoardLogic(config.boardRows, config.boardCols);
     this.matchDetector = new MatchDetector();
     this.scoringSystem = new ScoringSystem();
+    this.hintFinder = new HintFinder();
 
     // Place initial ice block obstacles if specified in level config
     if (config.initialIceBlocks) {
@@ -87,11 +93,14 @@ export class GameEngine {
       streakCount: 0,
       isFeverMode: false,
       feverMeter: 0,
+      cosmicPower: 0,
+      cosmicPowerReady: false,
       isProcessing: false,
       status: 'playing',
       phase: 'idle',
       swapAnimation: null,
       activeEffects: [],
+      hintMove: null,
     };
   }
 
@@ -231,6 +240,20 @@ export class GameEngine {
         }
       });
 
+      // Charge Cosmic Power meter naturally during gameplay
+      let chargeGained = 5; // Base 3-match
+      if (matchResult.matchedTiles.length === 4) chargeGained = 10;
+      else if (matchResult.matchedTiles.length >= 5) chargeGained = 20;
+      if (matchResult.createdSpecialTile || matchResult.isSpecialCombo) chargeGained += 15;
+      if (matchResult.damagedObstacles.length > 0 || matchResult.clearedJellies.length > 0) chargeGained += 10;
+      if (currentCombo > 1) chargeGained += 5 * currentCombo;
+
+      this.state.cosmicPower = Math.min(100, this.state.cosmicPower + chargeGained);
+      if (this.state.cosmicPower >= 100 && !this.state.cosmicPowerReady) {
+        this.state.cosmicPowerReady = true;
+        this.state.bannerMessage = '✨ COSMIC POWER READY! TAP TO UNLEASH COSMIC NOVA! ✨';
+      }
+
       // Phase 1: Highlight matched tiles with pop animation (Combo escalation delay)
       const popDelay = Math.max(150, 220 - (currentCombo - 1) * 20);
       matchResult.matchedTiles.forEach((t) => {
@@ -346,6 +369,92 @@ export class GameEngine {
     this.state.isProcessing = false;
     this.notifyStateChange();
     return true;
+  }
+
+  async useCosmicNova(): Promise<boolean> {
+    if (this.state.isProcessing || this.state.status !== 'playing' || !this.state.cosmicPowerReady) {
+      return false;
+    }
+
+    this.state.isProcessing = true;
+    this.state.cosmicPower = 0;
+    this.state.cosmicPowerReady = false;
+    this.state.bannerMessage = '🌟 COSMIC NOVA UNLEASHED! 🌟';
+    this.state.phase = 'cascade';
+
+    // Center 3x3 blast region calculation
+    const centerR = Math.floor(this.boardLogic.rows / 2);
+    const centerC = Math.floor(this.boardLogic.cols / 2);
+    const targetRows = [centerR - 1, centerR, centerR + 1].filter((r) => r >= 0 && r < this.boardLogic.rows);
+    const targetCols = [centerC - 1, centerC, centerC + 1].filter((c) => c >= 0 && c < this.boardLogic.cols);
+
+    // Populate bomb + prism active effects for visual spectacle
+    this.state.activeEffects = [
+      { type: 'bomb', row: centerR, col: centerC },
+      { type: 'prism' },
+    ];
+
+    // Mark affected 3x3 tiles as matched & clear obstacles in area
+    targetRows.forEach((r) => {
+      targetCols.forEach((c) => {
+        const tile = this.boardLogic.grid[r][c];
+        tile.matched = true;
+        if (tile.obstacle && tile.obstacle !== 'none') {
+          tile.obstacle = 'none';
+          this.state.destroyedObstacles++;
+        }
+        if (tile.jelly && tile.jelly !== 'none') {
+          tile.jelly = 'none';
+          this.state.destroyedObstacles++;
+        }
+      });
+    });
+
+    this.state.grid = cloneGrid(this.boardLogic.grid);
+    this.notifyStateChange();
+    await new Promise((res) => setTimeout(res, 400));
+
+    // Clear matched 3x3 tiles
+    targetRows.forEach((r) => {
+      targetCols.forEach((c) => {
+        const tile = this.boardLogic.grid[r][c];
+        tile.type = '';
+        tile.special = 'none';
+        tile.matched = false;
+      });
+    });
+
+    this.state.activeEffects = [];
+    this.state.score += 800; // Bonus Cosmic Nova score
+
+    // Apply gravity & refill
+    this.state.phase = 'falling';
+    const { fallen, newTiles } = this.boardLogic.applyGravityAndRefill();
+    this.state.grid = cloneGrid(this.boardLogic.grid);
+    this.notifyStateChange();
+    await new Promise((res) => setTimeout(res, 320));
+
+    fallen.forEach((t) => this.boardLogic.resetTileMetadata(t));
+    newTiles.forEach((t) => this.boardLogic.resetTileMetadata(t));
+
+    this.state.grid = cloneGrid(this.boardLogic.grid);
+    this.checkGameStatus();
+    this.state.phase = this.state.status === 'playing' ? 'idle' : (this.state.status as GamePhase);
+    this.state.isProcessing = false;
+    this.notifyStateChange();
+    return true;
+  }
+
+  public calculateHint(): HintMove | null {
+    if (this.state.isProcessing || this.state.status !== 'playing') {
+      return null;
+    }
+    return this.hintFinder.findBestHint(
+      this.boardLogic.grid,
+      this.boardLogic.rows,
+      this.boardLogic.cols,
+      this.state.levelConfig
+    );
   }
 
   checkGameStatus(): void {

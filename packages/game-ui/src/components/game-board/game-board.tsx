@@ -35,6 +35,7 @@ export class GameBoard {
   @Prop({ mutable: true }) phase: string = 'idle';
   @Prop({ attribute: 'swap-animation', mutable: true }) swapAnimation: any = null;
   @Prop({ attribute: 'active-effects', mutable: true }) activeEffects: any = [];
+  @Prop({ attribute: 'hint-move', mutable: true }) hintMove: any = null;
   @Prop({ attribute: 'is-fever', mutable: true }) isFever: boolean = false;
   @Prop({ attribute: 'show-fps', mutable: true }) showFps: boolean = false;
 
@@ -47,6 +48,7 @@ export class GameBoard {
   @Watch('phase')
   @Watch('swapAnimation')
   @Watch('activeEffects')
+  @Watch('hintMove')
   @Watch('isFever')
   @Watch('showFps')
   onPropChange() {
@@ -196,6 +198,21 @@ export class GameBoard {
     this.renderer?.destroy();
   }
 
+  private get parsedHintMove(): { fromRow: number; fromCol: number; toRow: number; toCol: number } | null {
+    const hint = this.hintMove ?? (this.el as any)?.hintMove;
+    if (typeof hint === 'object' && hint !== null) {
+      return hint as any;
+    }
+    if (typeof hint === 'string' && hint.trim().length > 0) {
+      try {
+        return JSON.parse(hint);
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  }
+
   private updateRendererProps(): void {
     if (!this.renderer) return;
 
@@ -206,6 +223,7 @@ export class GameBoard {
     this.renderer.disabled = this.disabled;
     this.renderer.isFever = this.isFever;
     this.renderer.showFps = this.showFps;
+    this.renderer.hintMove = this.parsedHintMove;
     this.renderer.setPhase(this.phase);
     this.renderer.setSwapAnimation(this.parsedSwapAnimation);
     this.renderer.setSpecialEffects(this.parsedActiveEffects);

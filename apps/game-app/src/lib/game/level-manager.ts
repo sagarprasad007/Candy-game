@@ -86,7 +86,7 @@ export const GAME_LEVELS: LevelConfig[] = [
     difficulty: 'hard',
     boardRows: 8,
     boardCols: 8,
-    moves: 16,
+    moves: 21,
     objective: {
       type: 'obstacle',
       targetScore: 8000,
@@ -129,7 +129,7 @@ export class LevelManager {
     const totalCells = boardRows * boardCols;
 
     const targetScore = 10000 + (id - 6) * 2500;
-    const moves = Math.max(12, 24 - Math.floor((id - 6) / 3));
+    const moves = Math.max(16, 26 - Math.floor((id - 6) / 4));
     const objTypeIndex = id % 4;
 
     // Rich Title Combinatorics ([Prefix] [Noun] [Suffix])

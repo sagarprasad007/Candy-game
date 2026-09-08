@@ -25,6 +25,13 @@
     <div class="modal-header">
       <h2>LEVEL {levelConfig.id}</h2>
       <h3>{levelConfig.title}</h3>
+      {#if levelConfig.difficulty === 'hard'}
+        <div class="diff-badge hard">🔥 HARD LEVEL</div>
+      {:else if levelConfig.difficulty === 'medium'}
+        <div class="diff-badge medium">⚡ MEDIUM</div>
+      {:else}
+        <div class="diff-badge easy">✨ EASY</div>
+      {/if}
     </div>
 
     <div class="specs-grid">
@@ -86,6 +93,20 @@
           Reach target score of <strong>{levelConfig.objective.targetScore.toLocaleString()}</strong> before running out of moves!
         {/if}
       </p>
+    </div>
+
+    <div class="help-summary-card">
+      <h4>AVAILABLE STRATEGIC HELP</h4>
+      <div class="help-grid">
+        <div class="help-item">
+          <span class="h-icon">🌟</span>
+          <span class="h-text"><strong>Cosmic Nova:</strong> Charge meter with matches to unleash 3x3 blast</span>
+        </div>
+        <div class="help-item">
+          <span class="h-icon">💡</span>
+          <span class="h-text"><strong>Smart Hints:</strong> Auto-suggests legal objective-focused moves when idle</span>
+        </div>
+      </div>
     </div>
 
     <div class="pre-boosters">
@@ -316,5 +337,73 @@
 
   .jelly-cell {
     background: #fbcfe8;
+  }
+
+  .diff-badge {
+    display: inline-block;
+    font-size: 0.75rem;
+    font-weight: 900;
+    padding: 3px 10px;
+    border-radius: 12px;
+    margin-top: 4px;
+    letter-spacing: 0.5px;
+  }
+
+  .diff-badge.hard {
+    background: #ffe4e6;
+    color: #e11d48;
+    border: 1.5px solid #f43f5e;
+  }
+
+  .diff-badge.medium {
+    background: #fef3c7;
+    color: #d97706;
+    border: 1.5px solid #fbbf24;
+  }
+
+  .diff-badge.easy {
+    background: #dcfce7;
+    color: #15803d;
+    border: 1.5px solid #4ade80;
+  }
+
+  .help-summary-card {
+    background: #f0fdf4;
+    border: 2px solid #86efac;
+    border-radius: 16px;
+    padding: 10px 14px;
+    width: 100%;
+    box-sizing: border-box;
+    text-align: left;
+  }
+
+  .help-summary-card h4 {
+    margin: 0 0 6px 0;
+    color: #166534;
+    font-size: 0.75rem;
+    font-weight: 900;
+    text-align: center;
+  }
+
+  .help-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .help-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .h-icon {
+    font-size: 1.1rem;
+  }
+
+  .h-text {
+    font-size: 0.8rem;
+    color: #14532d;
+    line-height: 1.25;
   }
 </style>
