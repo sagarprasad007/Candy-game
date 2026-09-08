@@ -2,76 +2,115 @@ class AudioManager {
   private ctx: AudioContext | null = null;
   public enabled: boolean = true;
   public musicEnabled: boolean = true;
+  public musicVolume: number = 0.5;
 
-  private bgmGainNode: GainNode | null = null;
-  private bgmOscs: OscillatorNode[] = [];
+  private bgmMasterGain: GainNode | null = null;
+  private chordInterval: any = null;
   private isBgmPlaying: boolean = false;
-  private isDucked: boolean = false;
+  private currentChordIdx: number = 0;
 
   private initCtx() {
     if (!this.ctx && typeof window !== 'undefined') {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (AudioCtx) this.ctx = new AudioCtx();
     }
+  }
+
+  public resumeContext() {
+    this.initCtx();
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume();
     }
   }
 
+  public setMusicVolume(vol: number) {
+    this.musicVolume = Math.max(0, Math.min(1, vol));
+    if (this.bgmMasterGain && this.ctx) {
+      const targetGain = 0.04 * this.musicVolume;
+      this.bgmMasterGain.gain.cancelScheduledValues(this.ctx.currentTime);
+      this.bgmMasterGain.gain.linearRampToValueAtTime(targetGain, this.ctx.currentTime + 0.2);
+    }
+  }
+
   public startBgm() {
     if (!this.musicEnabled || this.isBgmPlaying) return;
-    this.initCtx();
+    this.resumeContext();
     if (!this.ctx) return;
 
     try {
-      this.bgmGainNode = this.ctx.createGain();
-      this.bgmGainNode.gain.setValueAtTime(0.12, this.ctx.currentTime);
-      this.bgmGainNode.connect(this.ctx.destination);
+      this.bgmMasterGain = this.ctx.createGain();
+      const targetGain = 0.04 * this.musicVolume;
+      this.bgmMasterGain.gain.setValueAtTime(0, this.ctx.currentTime);
+      this.bgmMasterGain.gain.linearRampToValueAtTime(targetGain, this.ctx.currentTime + 1.5);
+      this.bgmMasterGain.connect(this.ctx.destination);
 
-      // Create ambient 3-chord looping synth pad (Cmaj7 -> Am7 -> Fmaj7)
-      const freqs = [261.63, 329.63, 392.0, 493.88]; // C, E, G, B
-      this.bgmOscs = freqs.map((f) => {
-        const osc = this.ctx!.createOscillator();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(f, this.ctx!.currentTime);
-        osc.connect(this.bgmGainNode!);
-        osc.start();
-        return osc;
-      });
+      // Chords: Cmaj7 -> Am7 -> Fmaj7 -> G7
+      const chordProgression = [
+        [261.63, 329.63, 392.0, 493.88], // Cmaj7
+        [220.0, 261.63, 329.63, 392.0],  // Am7
+        [174.61, 220.0, 261.63, 329.63], // Fmaj7
+        [196.0, 246.94, 293.66, 349.23], // G7
+      ];
+
+      const playChordStep = () => {
+        if (!this.isBgmPlaying || !this.ctx || !this.bgmMasterGain) return;
+        const now = this.ctx.currentTime;
+        const freqs = chordProgression[this.currentChordIdx];
+        this.currentChordIdx = (this.currentChordIdx + 1) % chordProgression.length;
+
+        freqs.forEach((f) => {
+          const osc = this.ctx!.createOscillator();
+          const noteGain = this.ctx!.createGain();
+
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(f, now);
+
+          // Soft attack and release envelope per chord pulse
+          noteGain.gain.setValueAtTime(0.001, now);
+          noteGain.gain.linearRampToValueAtTime(0.25, now + 1.2);
+          noteGain.gain.exponentialRampToValueAtTime(0.001, now + 3.8);
+
+          osc.connect(noteGain);
+          noteGain.connect(this.bgmMasterGain!);
+
+          osc.start(now);
+          osc.stop(now + 3.9);
+        });
+      };
 
       this.isBgmPlaying = true;
+      playChordStep();
+      this.chordInterval = setInterval(playChordStep, 3500);
     } catch (e) {
       console.warn('BGM initialization error', e);
     }
   }
 
   public stopBgm() {
-    if (this.bgmOscs.length > 0) {
-      this.bgmOscs.forEach((osc) => {
-        try {
-          osc.stop();
-          osc.disconnect();
-        } catch (_) {}
-      });
-      this.bgmOscs = [];
+    if (this.chordInterval) {
+      clearInterval(this.chordInterval);
+      this.chordInterval = null;
+    }
+    if (this.bgmMasterGain && this.ctx) {
+      try {
+        this.bgmMasterGain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.5);
+      } catch (_) {}
     }
     this.isBgmPlaying = false;
   }
 
-  public duckMusic(durationMs = 600) {
-    if (!this.bgmGainNode || !this.ctx || !this.isBgmPlaying) return;
+  public duckBgm(ducking: boolean) {
+    if (!this.bgmMasterGain || !this.ctx || !this.isBgmPlaying) return;
     const now = this.ctx.currentTime;
-    this.bgmGainNode.gain.cancelScheduledValues(now);
-    this.bgmGainNode.gain.setValueAtTime(0.05, now); // Reduce by >50%
-    this.bgmGainNode.gain.exponentialRampToValueAtTime(0.12, now + durationMs / 1000);
+    const targetGain = ducking ? 0.01 * this.musicVolume : 0.04 * this.musicVolume;
+    this.bgmMasterGain.gain.cancelScheduledValues(now);
+    this.bgmMasterGain.gain.linearRampToValueAtTime(targetGain, now + (ducking ? 0.1 : 0.6));
   }
 
   playMatchSound(combo = 1, matchCount = 3) {
     if (!this.enabled) return;
     this.initCtx();
     if (!this.ctx) return;
-
-    this.duckMusic(500);
 
     const now = this.ctx.currentTime;
     const osc = this.ctx.createOscillator();
@@ -101,8 +140,6 @@ class AudioManager {
     if (!this.enabled) return;
     this.initCtx();
     if (!this.ctx) return;
-
-    this.duckMusic(700);
 
     const now = this.ctx.currentTime;
     const osc = this.ctx.createOscillator();

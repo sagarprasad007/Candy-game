@@ -7,7 +7,7 @@
 
   const leaderboardData = $derived([
     { rank: 1, name: 'Shital Baby 💖 (Kingdom Champion)', score: 28450, badge: '👑' },
-    { rank: 2, name: 'YOU (Personal Best)', score: Math.max(playerTotalScore, 12500), badge: '⭐', isUser: true },
+    { rank: 2, name: 'YOU (Personal Best)', score: playerTotalScore, badge: '⭐', isUser: true },
     { rank: 3, name: 'Sugar Master 🍬', score: 24100, badge: '🥈' },
     { rank: 4, name: 'Candy Queen 🍭', score: 21850, badge: '🥉' },
     { rank: 5, name: 'Sweet Champ 🍩', score: 19200, badge: '✨' },

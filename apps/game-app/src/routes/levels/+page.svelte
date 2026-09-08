@@ -71,6 +71,14 @@
               <span class="star {stars >= 2 ? 'earned' : ''}">★</span>
               <span class="star {stars >= 3 ? 'earned' : ''}">★</span>
             </div>
+            <div class="badges-row">
+              {#if lvl.initialIceBlocks && lvl.initialIceBlocks.length > 0}
+                <span class="obs-badge ice">🧊 {lvl.initialIceBlocks.length}</span>
+              {/if}
+              {#if lvl.initialJellies && lvl.initialJellies.length > 0}
+                <span class="obs-badge jelly">🍯 {lvl.initialJellies.length}</span>
+              {/if}
+            </div>
           {/if}
         </div>
 
@@ -185,6 +193,29 @@
   .star.earned {
     color: #fbbf24;
     text-shadow: 0 2px 6px rgba(251, 191, 36, 0.6);
+  }
+
+  .badges-row {
+    display: flex;
+    gap: 6px;
+    margin-top: 4px;
+  }
+
+  .obs-badge {
+    font-size: 0.65rem;
+    font-weight: 800;
+    padding: 1px 6px;
+    border-radius: 8px;
+  }
+
+  .obs-badge.ice {
+    background: #e0f2fe;
+    color: #0369a1;
+  }
+
+  .obs-badge.jelly {
+    background: #fce7f3;
+    color: #be185d;
   }
 
   .lock {

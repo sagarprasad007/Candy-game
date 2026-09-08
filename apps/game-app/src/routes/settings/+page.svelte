@@ -4,6 +4,8 @@
 
   let soundOn = $state(playerStore.settings.soundEnabled);
   let musicOn = $state(playerStore.settings.musicEnabled);
+  let hapticsOn = $state(playerStore.settings.hapticsEnabled ?? true);
+  let musicVolume = $state(playerStore.settings.musicVolume ?? 0.8);
   let animsOn = $state(playerStore.settings.animationsEnabled);
   let showResetConfirmModal = $state(false);
   let toastMsg = $state<string | null>(null);
@@ -21,6 +23,19 @@
     soundFx.musicEnabled = musicOn;
     if (musicOn) soundFx.startBgm();
     else soundFx.stopBgm();
+    playerStore.saveSettings();
+  }
+
+  function toggleHaptics() {
+    hapticsOn = !hapticsOn;
+    playerStore.settings.hapticsEnabled = hapticsOn;
+    playerStore.saveSettings();
+  }
+
+  function updateVolume(val: number) {
+    musicVolume = val;
+    playerStore.settings.musicVolume = val;
+    soundFx.setMusicVolume(val);
     playerStore.saveSettings();
   }
 
@@ -85,6 +100,34 @@
       </div>
       <button class={`toggle-btn ${musicOn ? 'on' : 'off'}`} onclick={toggleMusic}>
         {musicOn ? 'ON' : 'OFF'}
+      </button>
+    </div>
+
+    {#if musicOn}
+      <div class="setting-item">
+        <div class="label-info">
+          <h3>BGM Volume</h3>
+          <p>Adjust music volume intensity ({Math.round(musicVolume * 100)}%)</p>
+        </div>
+        <input
+          type="range"
+          min="0"
+          max="1"
+          step="0.05"
+          value={musicVolume}
+          oninput={(e) => updateVolume(parseFloat(e.currentTarget.value))}
+          class="volume-slider"
+        />
+      </div>
+    {/if}
+
+    <div class="setting-item">
+      <div class="label-info">
+        <h3>Haptic Vibration</h3>
+        <p>Tactile feedback on candy swaps and match pops</p>
+      </div>
+      <button class={`toggle-btn ${hapticsOn ? 'on' : 'off'}`} onclick={toggleHaptics}>
+        {hapticsOn ? 'ON' : 'OFF'}
       </button>
     </div>
 
@@ -269,6 +312,12 @@
     background: #ef4444;
     color: #ffffff;
     box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+  }
+
+  .volume-slider {
+    accent-color: #ec4899;
+    cursor: pointer;
+    width: 100px;
   }
 
   .toast-banner {

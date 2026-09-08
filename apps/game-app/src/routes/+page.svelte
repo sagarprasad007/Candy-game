@@ -68,6 +68,17 @@
     </div>
   </div>
 
+  <div class="daily-challenge-card">
+    <div class="dc-header">
+      <div class="dc-title">📅 DAILY CANDY CHALLENGE</div>
+      <div class="dc-badge">REWARD: 💰 100 COINS</div>
+    </div>
+    <p class="dc-desc">Complete today's sweet objective: Score 5,000 points in any level!</p>
+    <button type="button" class="dc-btn" onclick={handleStartPlay}>
+      ACCEPT CHALLENGE 🚀
+    </button>
+  </div>
+
   <div class="lives-card">
     <div class="lives-header">
       <span>Candy Lives</span>
@@ -206,6 +217,61 @@
     text-decoration: none;
     font-weight: 800;
     font-size: 1rem;
+  }
+
+  .daily-challenge-card {
+    width: 100%;
+    background: linear-gradient(135deg, #fef3c7, #fde68a);
+    border: 3px solid #f59e0b;
+    border-radius: 24px;
+    padding: 18px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    box-shadow: 0 8px 20px rgba(245, 158, 11, 0.25);
+  }
+
+  .dc-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .dc-title {
+    font-weight: 900;
+    color: #92400e;
+    font-size: 1.05rem;
+  }
+
+  .dc-badge {
+    background: #ffffff;
+    border: 2px solid #f59e0b;
+    color: #b45309;
+    font-weight: 900;
+    font-size: 0.75rem;
+    padding: 3px 10px;
+    border-radius: 12px;
+  }
+
+  .dc-desc {
+    margin: 0;
+    font-weight: 700;
+    color: #78350f;
+    font-size: 0.9rem;
+  }
+
+  .dc-btn {
+    background: linear-gradient(90deg, #d97706, #b45309);
+    color: #ffffff;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 16px;
+    font-weight: 900;
+    font-size: 0.95rem;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(180, 83, 9, 0.3);
+    align-self: flex-start;
   }
 
   .lives-card {

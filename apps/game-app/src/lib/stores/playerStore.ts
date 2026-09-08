@@ -20,6 +20,8 @@ export interface PlayerProgress {
 export interface GameSettings {
   soundEnabled: boolean;
   musicEnabled: boolean;
+  hapticsEnabled: boolean;
+  musicVolume: number; // 0.0 to 1.0
   animationsEnabled: boolean;
 }
 
@@ -42,6 +44,8 @@ const DEFAULT_PROGRESS: PlayerProgress = {
 const DEFAULT_SETTINGS: GameSettings = {
   soundEnabled: true,
   musicEnabled: true,
+  hapticsEnabled: true,
+  musicVolume: 0.8,
   animationsEnabled: true,
 };
 
@@ -150,9 +154,9 @@ class StorageStore {
       this.progress.completedLevels.push(levelId);
     }
 
-    const maxLevel = this.levelManager.getAllLevels().length;
     const nextLevel = levelId + 1;
-    if (!this.progress.unlockedLevels.includes(nextLevel) && nextLevel <= maxLevel) {
+    // Only unlock next level if stars >= 1
+    if (stars >= 1 && !this.progress.unlockedLevels.includes(nextLevel)) {
       this.progress.unlockedLevels.push(nextLevel);
     }
 

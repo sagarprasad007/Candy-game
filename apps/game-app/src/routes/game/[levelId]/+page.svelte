@@ -105,11 +105,19 @@
     }
   }
 
+  let boosterToast = $state<string | null>(null);
+
   async function handleGameTileSelected(e: CustomEvent<{ row: number; col: number }>) {
     if (!engine || !gameState || gameState.isProcessing) return;
     const { row: r, col: c } = e.detail;
 
     if (isHammerMode) {
+      if (!playerStore.useBooster('hammer')) {
+        isHammerMode = false;
+        boosterToast = '🔨 Out of Hammers! Buy more in the Candy Shop.';
+        setTimeout(() => { boosterToast = null; }, 3000);
+        return;
+      }
       isHammerMode = false;
       selectedRow = -1;
       selectedCol = -1;
@@ -156,6 +164,11 @@
 
   async function handleShuffleBooster() {
     if (!engine || !gameState || gameState.isProcessing) return;
+    if (!playerStore.useBooster('shuffle')) {
+      boosterToast = '🔀 Out of Shuffles! Buy more in the Candy Shop.';
+      setTimeout(() => { boosterToast = null; }, 3000);
+      return;
+    }
     isHammerMode = false;
     selectedRow = -1;
     selectedCol = -1;
@@ -166,6 +179,11 @@
 
   function toggleHammerMode() {
     if (gameState?.isProcessing) return;
+    if (!isHammerMode && (playerStore.progress.boosters?.hammer || 0) <= 0) {
+      boosterToast = '🔨 Out of Hammers! Buy more in the Candy Shop.';
+      setTimeout(() => { boosterToast = null; }, 3000);
+      return;
+    }
     isHammerMode = !isHammerMode;
     selectedRow = -1;
     selectedCol = -1;
@@ -251,7 +269,9 @@
     </div>
 
     <div class="banner-container">
-      {#if gameState.bannerMessage}
+      {#if boosterToast}
+        <div class="booster-toast-banner">{boosterToast}</div>
+      {:else if gameState.bannerMessage}
         <div class="candy-banner">🍬 {gameState.bannerMessage} 🍭</div>
       {:else if isHammerMode}
         <div class="booster-banner">🔨 Quantum Hammer Active — Tap any tile to smash it!</div>

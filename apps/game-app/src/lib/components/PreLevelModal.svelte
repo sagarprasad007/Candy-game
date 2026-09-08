@@ -40,13 +40,38 @@
         <span class="icon">👟</span>
         <span class="val">{levelConfig.moves} Moves</span>
       </div>
-      {#if levelConfig.initialIceBlocks}
+      {#if levelConfig.initialIceBlocks && levelConfig.initialIceBlocks.length > 0}
         <div class="spec-item">
           <span class="icon">🧊</span>
-          <span class="val">{levelConfig.initialIceBlocks.length} Ice Blocks</span>
+          <span class="val">{levelConfig.initialIceBlocks.length} Ice</span>
+        </div>
+      {/if}
+      {#if levelConfig.initialJellies && levelConfig.initialJellies.length > 0}
+        <div class="spec-item">
+          <span class="icon">🍯</span>
+          <span class="val">{levelConfig.initialJellies.length} Jelly</span>
         </div>
       {/if}
     </div>
+
+    {#if (levelConfig.initialIceBlocks && levelConfig.initialIceBlocks.length > 0) || (levelConfig.initialJellies && levelConfig.initialJellies.length > 0)}
+      <div class="preview-container">
+        <div class="preview-title">OBSTACLE PREVIEW</div>
+        <div class="preview-grid" style="grid-template-columns: repeat({levelConfig.boardCols}, 1fr);">
+          {#each Array(levelConfig.boardRows) as _, r}
+            {#each Array(levelConfig.boardCols) as _, c}
+              {#if levelConfig.initialIceBlocks?.some(i => i.row === r && i.col === c)}
+                <div class="mini-cell ice-cell">🧊</div>
+              {:else if levelConfig.initialJellies?.some(j => j.row === r && j.col === c)}
+                <div class="mini-cell jelly-cell">🍯</div>
+              {:else}
+                <div class="mini-cell"></div>
+              {/if}
+            {/each}
+          {/each}
+        </div>
+      </div>
+    {/if}
 
     <div class="objective-card">
       <h4>OBJECTIVE</h4>
@@ -55,6 +80,8 @@
           Collect <strong>{levelConfig.objective.collectCount} {levelConfig.objective.collectType}s</strong> & reach target score!
         {:else if levelConfig.objective.type === 'obstacle'}
           Destroy <strong>{levelConfig.objective.obstacleCount} Ice Blocks</strong> & reach target score!
+        {:else if levelConfig.objective.type === 'jelly'}
+          Clear <strong>{levelConfig.objective.obstacleCount} Jelly Tiles</strong> & reach target score!
         {:else}
           Reach target score of <strong>{levelConfig.objective.targetScore.toLocaleString()}</strong> before running out of moves!
         {/if}
@@ -244,5 +271,50 @@
 
   .start-btn:hover {
     transform: scale(1.03);
+  }
+
+  .preview-container {
+    width: 100%;
+    background: #f8fafc;
+    border: 2px dashed #cbd5e1;
+    border-radius: 16px;
+    padding: 8px;
+    box-sizing: border-box;
+  }
+
+  .preview-title {
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: #64748b;
+    margin-bottom: 6px;
+    letter-spacing: 0.5px;
+  }
+
+  .preview-grid {
+    display: grid;
+    gap: 2px;
+    background: #e2e8f0;
+    padding: 3px;
+    border-radius: 8px;
+    max-width: 180px;
+    margin: 0 auto;
+  }
+
+  .mini-cell {
+    aspect-ratio: 1;
+    background: #ffffff;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.65rem;
+  }
+
+  .ice-cell {
+    background: #bae6fd;
+  }
+
+  .jelly-cell {
+    background: #fbcfe8;
   }
 </style>

@@ -5,6 +5,7 @@ export interface TileData {
   type: string; // ruby, sapphire, emerald, amber, amethyst
   special: 'none' | 'line-h' | 'line-v' | 'bomb' | 'prism';
   obstacle: 'none' | 'ice-1' | 'ice-2';
+  jelly?: 'none' | 'single' | 'double';
   row: number;
   col: number;
   matched?: boolean;
@@ -26,6 +27,7 @@ export function createRandomTile(row: number, col: number, allowedTypes = TILE_T
     type,
     special: 'none',
     obstacle: 'none',
+    jelly: 'none',
     row,
     col,
   };

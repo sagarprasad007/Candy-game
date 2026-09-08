@@ -4,11 +4,31 @@ export interface MatchResult {
   matchedTiles: TileData[];
   createdSpecialTile?: { row: number; col: number; special: 'line-h' | 'line-v' | 'bomb' | 'prism'; type: string };
   damagedObstacles: { row: number; col: number; newObstacleState: 'none' | 'ice-1' }[];
+  clearedJellies: { row: number; col: number; newJellyState: 'none' | 'single' }[];
   isSpecialCombo?: boolean;
 }
 
 export class MatchDetector {
   findMatches(grid: Grid, rows: number, cols: number, swappedPos?: { r1: number; c1: number; r2: number; c2: number }): MatchResult {
+    // Helper to calculate cleared jelly layers on matched positions
+    const getJellyClears = (matched: TileData[]) => {
+      const clearsMap = new Map<string, { row: number; col: number; newJellyState: 'none' | 'single' }>();
+      matched.forEach((tile) => {
+        const r = tile.row;
+        const c = tile.col;
+        const currentJelly = grid[r]?.[c]?.jelly;
+        const key = `${r},${c}`;
+        if (currentJelly && currentJelly !== 'none' && !clearsMap.has(key)) {
+          clearsMap.set(key, {
+            row: r,
+            col: c,
+            newJellyState: currentJelly === 'double' ? 'single' : 'none',
+          });
+        }
+      });
+      return Array.from(clearsMap.values());
+    };
+
     // 0. Check explicit player Special + Special swap combination first
     if (swappedPos) {
       const { r1, c1, r2, c2 } = swappedPos;
@@ -92,6 +112,7 @@ export class MatchDetector {
         return {
           matchedTiles,
           damagedObstacles: Array.from(damagedObstaclesMap.values()),
+          clearedJellies: getJellyClears(matchedTiles),
           isSpecialCombo: true,
         };
       } else if (tile1 && tile2 && (tile1.special === 'prism' || tile2.special === 'prism')) {
@@ -130,6 +151,7 @@ export class MatchDetector {
           return {
             matchedTiles,
             damagedObstacles: Array.from(damagedObstaclesMap.values()),
+            clearedJellies: getJellyClears(matchedTiles),
             isSpecialCombo: true,
           };
         }
@@ -309,8 +331,7 @@ export class MatchDetector {
       matchedTiles: finalMatched,
       createdSpecialTile,
       damagedObstacles: Array.from(damagedObstaclesMap.values()),
+      clearedJellies: getJellyClears(finalMatched),
     };
   }
 }
-
-

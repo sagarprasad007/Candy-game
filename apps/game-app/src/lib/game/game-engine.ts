@@ -2,6 +2,7 @@ import { GameBoardLogic, cloneGrid, hasValidMoves, type Grid, type TileData } fr
 import { MatchDetector } from './match-detector';
 import { ScoringSystem } from './scoring';
 import { LevelManager, type LevelConfig } from './level-manager';
+import { soundFx } from '../audio/sound';
 
 export type GamePhase =
   | 'idle'
@@ -62,6 +63,15 @@ export class GameEngine {
       config.initialIceBlocks.forEach((ice) => {
         if (this.boardLogic.grid[ice.row] && this.boardLogic.grid[ice.row][ice.col]) {
           this.boardLogic.grid[ice.row][ice.col].obstacle = ice.state;
+        }
+      });
+    }
+
+    // Place initial jellies if specified in level config
+    if (config.initialJellies) {
+      config.initialJellies.forEach((j) => {
+        if (this.boardLogic.grid[j.row] && this.boardLogic.grid[j.row][j.col]) {
+          this.boardLogic.grid[j.row][j.col].jelly = j.state;
         }
       });
     }
@@ -152,6 +162,8 @@ export class GameEngine {
     let currentCombo = 1;
     let hasMoreMatches = true;
 
+    soundFx.duckBgm(true);
+
     while (hasMoreMatches) {
       const matchResult = this.matchDetector.findMatches(
         this.boardLogic.grid,
@@ -211,6 +223,14 @@ export class GameEngine {
         }
       });
 
+      matchResult.clearedJellies.forEach((jellyClear) => {
+        const cell = this.boardLogic.grid[jellyClear.row][jellyClear.col];
+        cell.jelly = jellyClear.newJellyState;
+        if (jellyClear.newJellyState === 'none') {
+          this.state.destroyedObstacles++; // Also increment objective count if jelly objective
+        }
+      });
+
       // Phase 1: Highlight matched tiles with pop animation (Combo escalation delay)
       const popDelay = Math.max(150, 220 - (currentCombo - 1) * 20);
       matchResult.matchedTiles.forEach((t) => {
@@ -251,6 +271,8 @@ export class GameEngine {
 
       currentCombo++;
     }
+
+    soundFx.duckBgm(false);
 
     // Deadlock Check: if board has no valid moves remaining, auto-shuffle
     this.checkGameStatus();
@@ -336,7 +358,7 @@ export class GameEngine {
       isObjectiveMet =
         this.state.collectedCount >= (obj.collectCount || 0) &&
         this.state.score >= obj.targetScore;
-    } else if (obj.type === 'obstacle') {
+    } else if (obj.type === 'obstacle' || (obj.type as string) === 'jelly') {
       isObjectiveMet =
         this.state.destroyedObstacles >= (obj.obstacleCount || 0) &&
         this.state.score >= obj.targetScore;

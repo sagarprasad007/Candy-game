@@ -71,6 +71,7 @@
 
       <nav class="nav-links">
         <a href="/levels">Levels</a>
+        <a href="/shop">🛍️ Shop</a>
         <a href="/wheel">🎡 Wheel</a>
         <a href="/leaderboard">Leaderboard</a>
         <a href="/achievements">Trophies</a>
@@ -99,6 +100,10 @@
     <span class="icon">🗺️</span>
     <span class="label">Levels</span>
   </a>
+  <a href="/shop" class="mobile-nav-item">
+    <span class="icon">🛍️</span>
+    <span class="label">Shop</span>
+  </a>
   <a href="/wheel" class="mobile-nav-item">
     <span class="icon">🎡</span>
     <span class="label">Wheel</span>
@@ -106,10 +111,6 @@
   <a href="/leaderboard" class="mobile-nav-item">
     <span class="icon">🏆</span>
     <span class="label">Rankings</span>
-  </a>
-  <a href="/achievements" class="mobile-nav-item">
-    <span class="icon">✨</span>
-    <span class="label">Trophies</span>
   </a>
   <a href="/settings" class="mobile-nav-item">
     <span class="icon">⚙️</span>

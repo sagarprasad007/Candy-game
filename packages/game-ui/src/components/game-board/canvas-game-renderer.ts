@@ -3,6 +3,7 @@ export interface BoardTile {
   type: string;
   special?: 'none' | 'line-h' | 'line-v' | 'bomb' | 'prism' | string;
   obstacle?: 'none' | 'ice-1' | 'ice-2' | string;
+  jelly?: 'none' | 'single' | 'double' | string;
   row: number;
   col: number;
   matched?: boolean;
@@ -54,6 +55,7 @@ export interface VisualTileState {
   type: string;
   special?: string;
   obstacle?: string;
+  jelly?: string;
   row: number;
   col: number;
   startX: number;
@@ -287,6 +289,7 @@ export class CanvasGameRenderer {
           existing.type = tile.type;
           existing.special = tile.special;
           existing.obstacle = tile.obstacle;
+          existing.jelly = tile.jelly;
           existing.matched = tile.matched;
           existing.row = r;
           existing.col = c;
@@ -316,6 +319,7 @@ export class CanvasGameRenderer {
               type: tile.type,
               special: tile.special,
               obstacle: tile.obstacle,
+              jelly: tile.jelly,
               row: r,
               col: c,
               startX: targetX,
@@ -344,6 +348,7 @@ export class CanvasGameRenderer {
               type: tile.type,
               special: tile.special,
               obstacle: tile.obstacle,
+              jelly: tile.jelly,
               row: r,
               col: c,
               startX,
@@ -763,8 +768,28 @@ export class CanvasGameRenderer {
     ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
     ctx.translate(cx, cy);
 
-    // Rounded rectangle card path
     const radius = 14 * Math.min(scaleX, scaleY);
+
+    // Feature 1: Render Jelly Layer Puddle UNDER Tile Card
+    if (vTile.jelly && vTile.jelly !== 'none') {
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(-w / 2 - 3, -h / 2 - 3, w + 6, h + 6, radius + 2);
+      if (vTile.jelly === 'double') {
+        ctx.fillStyle = 'rgba(192, 38, 211, 0.75)';
+        ctx.shadowColor = '#c084fc';
+        ctx.shadowBlur = 10;
+      } else {
+        ctx.fillStyle = 'rgba(236, 72, 153, 0.45)';
+      }
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(244, 114, 182, 0.8)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Rounded rectangle card path
     ctx.beginPath();
     ctx.roundRect(-w / 2, -h / 2, w, h, radius);
 
@@ -815,17 +840,47 @@ export class CanvasGameRenderer {
       ctx.fillText(badgeIcon, w / 2 - 8 * scaleX, -h / 2 + 9 * scaleY);
     }
 
-    // Render Obstacle Overlay (Chocolate Blocks)
+    // Section 1.2A: Re-skin Ice Obstacle (Frosted Blue + Crack Lines)
     if (vTile.obstacle && vTile.obstacle !== 'none') {
+      ctx.save();
       ctx.beginPath();
       ctx.roundRect(-w / 2, -h / 2, w, h, radius);
-      ctx.fillStyle = 'rgba(120, 53, 15, 0.85)';
-      ctx.fill();
-      ctx.strokeStyle = '#451a03';
-      ctx.lineWidth = 2 * Math.min(scaleX, scaleY);
-      ctx.stroke();
-      ctx.font = `${Math.round(20 * Math.min(scaleX, scaleY))}px sans-serif`;
-      ctx.fillText('🍫', 0, 2);
+
+      if (vTile.obstacle === 'ice-2') {
+        const iceGrad = ctx.createLinearGradient(-w / 2, -h / 2, w / 2, h / 2);
+        iceGrad.addColorStop(0, 'rgba(224, 242, 254, 0.88)');
+        iceGrad.addColorStop(1, 'rgba(56, 189, 248, 0.78)');
+        ctx.fillStyle = iceGrad;
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+        ctx.lineWidth = 2 * Math.min(scaleX, scaleY);
+        ctx.stroke();
+        ctx.font = `${Math.round(20 * Math.min(scaleX, scaleY))}px sans-serif`;
+        ctx.fillText('❄️', 0, 2);
+      } else if (vTile.obstacle === 'ice-1') {
+        const iceGrad = ctx.createLinearGradient(-w / 2, -h / 2, w / 2, h / 2);
+        iceGrad.addColorStop(0, 'rgba(224, 242, 254, 0.65)');
+        iceGrad.addColorStop(1, 'rgba(125, 211, 252, 0.55)');
+        ctx.fillStyle = iceGrad;
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+        ctx.lineWidth = 2 * Math.min(scaleX, scaleY);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(-w * 0.3, -h * 0.25);
+        ctx.lineTo(0, h * 0.05);
+        ctx.lineTo(w * 0.25, -h * 0.3);
+        ctx.moveTo(0, h * 0.05);
+        ctx.lineTo(-w * 0.1, h * 0.3);
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2.5 * Math.min(scaleX, scaleY);
+        ctx.stroke();
+
+        ctx.font = `${Math.round(18 * Math.min(scaleX, scaleY))}px sans-serif`;
+        ctx.fillText('🧊', 0, 2);
+      }
+      ctx.restore();
     }
 
     ctx.restore();
