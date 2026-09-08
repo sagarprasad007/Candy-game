@@ -40,7 +40,7 @@
   <div class="candy-hero">
     <div class="hero-badge">🍬 SWEET & DELICIOUS</div>
     <h1 class="hero-title">CANDY KINGDOM</h1>
-    <p class="hero-subtitle">Match colorful candies, make sweet combos, pop chocolate blocks and play through {maxLevels} fun levels!</p>
+    <p class="hero-subtitle">Match colorful candies, make sweet combos, pop chocolate blocks and play through unlimited fun levels!</p>
 
     <div class="stats-row">
       <div class="stat-box">
@@ -49,7 +49,7 @@
       </div>
       <div class="stat-box">
         <span class="stat-label">COMPLETED</span>
-        <span class="stat-val">{playerStore.progress.completedLevels.length} / {maxLevels}</span>
+        <span class="stat-val">{playerStore.progress.completedLevels.length} Levels</span>
       </div>
       <div class="stat-box">
         <span class="stat-label">TROPHIES</span>

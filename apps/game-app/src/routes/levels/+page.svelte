@@ -4,7 +4,15 @@
   import { goto } from '$app/navigation';
 
   const levelManager = new LevelManager();
-  const allLevels = levelManager.getAllLevels();
+  
+  const highestUnlocked = $derived(
+    Math.max(1, ...(playerStore.progress.unlockedLevels || [1]))
+  );
+  // Show all levels up to highest unlocked level + 5 upcoming levels to support infinite levels!
+  const displayedLevelCount = $derived(Math.max(10, highestUnlocked + 5));
+  const allLevels = $derived(
+    Array.from({ length: displayedLevelCount }, (_, i) => levelManager.getLevel(i + 1))
+  );
 
   let activeModalMsg = $state<string | null>(null);
 
